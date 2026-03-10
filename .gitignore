@@ -32,7 +32,6 @@ wheels/
 MANIFEST
 
 # PyInstaller
-*.spec
 build/
 dist/
 
