@@ -1,0 +1,27 @@
+{
+    "credentials": {
+        "access_key": "",
+        "secret_key": "",
+        "region": "us-east-1",
+        "rule_description": "Your Name",
+        "key_path": "/path/to/your/ssh/key.pem"
+    },
+    "mysql": {
+        "user": "root",
+        "host": "127.0.0.1",
+        "protocol": "tcp",
+        "databases": {
+            "db_1": "db_1_name",
+            "db_2": "db_2_name"
+        }
+    },
+    "ssh": {
+        "user": "ubuntu",
+        "port": 22,
+        "strict_host_key_checking": false,
+        "connect_timeout": 10
+    },
+    "mfa": {
+        "required": true
+    }
+}

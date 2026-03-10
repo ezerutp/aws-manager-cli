@@ -1,0 +1,8 @@
+# AWS Manager CLI - Python Requirements
+# Version 2.0
+
+# HTTP requests (for getting public IP)
+requests>=2.31.0
+
+# Build tool (optional, only needed for creating binary)
+pyinstaller>=6.0.0
