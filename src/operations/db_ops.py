@@ -13,10 +13,28 @@ class DatabaseOperations:
         self.config = config_manager
 
     def get_sql_files_in_directory(self, directory: str = ".") -> List[Path]:
-        """Get all SQL and SQL.GZ files in directory"""
+        """Get all SQL and SQL.GZ files from directory, prioritizing db_dump."""
         try:
-            path = Path(directory)
-            sql_files = sorted(list(path.glob("*.sql")) + list(path.glob("*.sql.gz")))
+            search_paths = []
+
+            if directory == ".":
+                search_paths = [Path("db_dump"), Path(".")]
+            else:
+                search_paths = [Path(directory)]
+
+            sql_files = []
+            seen = set()
+
+            for path in search_paths:
+                if not path.exists() or not path.is_dir():
+                    continue
+
+                for file_path in sorted(list(path.glob("*.sql")) + list(path.glob("*.sql.gz"))):
+                    resolved = str(file_path.resolve())
+                    if resolved not in seen:
+                        seen.add(resolved)
+                        sql_files.append(file_path)
+
             return sql_files
         except Exception as e:
             print(f"✗ Error al listar archivos SQL: {e}")
@@ -51,6 +69,39 @@ class DatabaseOperations:
             return False
         except Exception as e:
             print(f"✗ Error al ejecutar MySQL: {e}")
+            return False
+
+    def connect_to_local_database(self, database: str) -> bool:
+        """Open interactive MySQL session for manual queries."""
+        mysql_user = self.config.get_mysql_user()
+        mysql_protocol = self.config.get_mysql_protocol()
+
+        cmd = [
+            'mysql',
+            f'-u{mysql_user}',
+            f'--protocol={mysql_protocol}',
+            database
+        ]
+
+        print("\n=== Conexión a BD Local ===")
+        print(f"Base de datos: {database}")
+        print("Ingresa tus consultas SQL manuales.")
+        print("Escribe 'exit' o 'quit' para volver al menú.")
+
+        try:
+            result = subprocess.run(cmd)
+            if result.returncode != 0:
+                print("✗ No se pudo abrir la sesión de MySQL.")
+                return False
+            return True
+        except FileNotFoundError:
+            print("✗ MySQL client no está instalado o no está en PATH.")
+            return False
+        except KeyboardInterrupt:
+            print("\n✗ Sesión de MySQL interrumpida.")
+            return False
+        except Exception as e:
+            print(f"✗ Error al conectar a MySQL local: {e}")
             return False
 
     def import_sql_file(self, database: str, sql_file: str) -> bool:

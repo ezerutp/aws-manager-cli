@@ -17,6 +17,7 @@ from src.auth import MFAAuthenticator
 from src.aws import EC2Manager, SecurityGroupManager
 from src.operations import SSHOperations, DumpOperations, DatabaseOperations
 from src.ui import MenuManager
+from src.cli import parse_cli_args
 
 
 def check_prerequisites() -> bool:
@@ -27,7 +28,7 @@ def check_prerequisites() -> bool:
         'aws': 'AWS CLI',
         'ssh': 'SSH client',
         'scp': 'SCP (SSH copy)',
-        'mysql': 'MySQL client (para recrear BD)'
+        'mysql': 'MySQL client (para recrear BD y consultas manuales)'
     }
     
     all_ok = True
@@ -48,10 +49,15 @@ def check_prerequisites() -> bool:
 
 def main():
     """Main application entry point"""
+    cli_options = parse_cli_args(sys.argv[1:])
+
     # Display header
     print("╔════════════════════════════════════════╗")
     print("║  AWS Environment Manager (Python v2.0) ║")
     print("╚════════════════════════════════════════╝")
+
+    if cli_options.local_mode:
+        print("Modo local activado: se omite MFA y se muestran solo opciones locales.")
     
     # Check prerequisites
     if not check_prerequisites():
@@ -83,33 +89,38 @@ def main():
     db_ops = DatabaseOperations(config)
     menu_manager = MenuManager(config, db_ops)
     
-    # Perform MFA authentication once at the start
-    print("=== Autenticación Inicial ===")
-    if not mfa_auth.perform_authentication():
-        print("\n✗ Error en autenticación. No se puede continuar.")
-        return 1
-    
-    print("\n✓ Sistema listo. Presiona Enter para continuar...")
-    try:
-        input()
-    except KeyboardInterrupt:
-        print("\n\n✗ Operación cancelada.")
-        return 0
+    if not cli_options.local_mode:
+        # Perform MFA authentication once at the start (normal mode)
+        print("=== Autenticación Inicial ===")
+        if not mfa_auth.perform_authentication():
+            print("\n✗ Error en autenticación. No se puede continuar.")
+            return 1
+
+        print("\n✓ Sistema listo. Presiona Enter para continuar...")
+        try:
+            input()
+        except KeyboardInterrupt:
+            print("\n\n✗ Operación cancelada.")
+            return 0
     
     menu_manager.clear_screen()
     
     # Main loop
     while True:
         try:
-            # Display main menu and get choice
-            choice = menu_manager.display_main_menu()
+            # Display menu according to mode and get choice
+            if cli_options.local_mode:
+                choice = menu_manager.display_local_menu()
+            else:
+                choice = menu_manager.display_main_menu()
             action = choice.get('action')
             
             if action == 'exit':
                 menu_manager.clear_screen()
                 print("Saliendo del sistema...")
                 print("\n✓ Sesión finalizada.")
-                mfa_auth.cleanup()
+                if not cli_options.local_mode:
+                    mfa_auth.cleanup()
                 return 0
             
             if action == 'invalid':
@@ -120,6 +131,12 @@ def main():
             
             # Handle SSH connection
             if action == 'ssh':
+                if cli_options.local_mode:
+                    print("\n✗ Esta operación no está disponible en modo local.")
+                    menu_manager.wait_for_enter()
+                    menu_manager.clear_screen()
+                    continue
+
                 environment = choice.get('environment')
                 ssh_ops.connect_ssh(environment)
                 print("\n✓ Sesión SSH finalizada.")
@@ -129,6 +146,12 @@ def main():
             
             # Handle SQL dump download
             if action == 'dump':
+                if cli_options.local_mode:
+                    print("\n✗ Esta operación no está disponible en modo local.")
+                    menu_manager.wait_for_enter()
+                    menu_manager.clear_screen()
+                    continue
+
                 environment = choice.get('environment')
                 dump_ops.download_dump(environment)
                 menu_manager.wait_for_enter()
@@ -155,6 +178,27 @@ def main():
                 
                 # Recreate database
                 db_ops.recreate_database(db_name, sql_file)
+                menu_manager.wait_for_enter()
+                menu_manager.clear_screen()
+                continue
+
+            # Handle local database interactive connection
+            if action == 'connect_local_db':
+                db_name = menu_manager.select_database()
+                if not db_name:
+                    menu_manager.clear_screen()
+                    continue
+
+                menu_manager.clear_screen()
+                db_ops.connect_to_local_database(db_name)
+                menu_manager.wait_for_enter()
+                menu_manager.clear_screen()
+                continue
+
+            # Handle disabled snippets option
+            if action == 'snippets_coming_soon':
+                print("\n⚠ Esta opción estará disponible próximamente (Coming Soon).")
+                print("Por ahora está deshabilitada.")
                 menu_manager.wait_for_enter()
                 menu_manager.clear_screen()
                 continue

@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
+import re
 
 
 class DumpOperations:
@@ -85,6 +86,13 @@ class DumpOperations:
         except Exception:
             pass
         return None
+
+    @staticmethod
+    def normalize_environment_name(env_name: str) -> str:
+        """Normalize environment name to a filesystem-safe prefix."""
+        normalized = env_name.strip().lower().replace(' ', '_')
+        normalized = re.sub(r'[^a-z0-9_-]', '', normalized)
+        return normalized or 'entorno'
     
     def download_dump(self, environment: dict) -> bool:
         """Download SQL dump from environment"""
@@ -112,9 +120,16 @@ class DumpOperations:
         print(f"\nNombre del archivo en servidor [{suggested_filename}]: ", end='')
         user_input = input().strip()
         dump_filename = user_input if user_input else suggested_filename
+
+        dump_dir = Path.cwd() / 'db_dump'
+        dump_dir.mkdir(exist_ok=True)
+
+        env_prefix = self.normalize_environment_name(env_name)
+        local_filename = f"{env_prefix}_{dump_filename}"
+        local_file_path = dump_dir / local_filename
         
         print(f"\nArchivo remoto: ~/{dump_filename}")
-        print(f"Archivo local:  {Path.cwd()}/{dump_filename}")
+        print(f"Archivo local:  {local_file_path}")
         
         ssh_user = self.config.get_ssh_user()
         
@@ -127,14 +142,14 @@ class DumpOperations:
         print("✓ Archivo encontrado. Descargando...")
         
         # Download file
-        if not self.download_file_scp(key_path, ssh_user, dns, dump_filename, dump_filename):
+        if not self.download_file_scp(key_path, ssh_user, dns, dump_filename, str(local_file_path)):
             print("✗ Error al descargar archivo.")
             return False
         
         # Show success and file size
-        print(f"✓ SQL dump descargado exitosamente: {Path.cwd()}/{dump_filename}")
+        print(f"✓ SQL dump descargado exitosamente: {local_file_path}")
         
-        size_mb = self.get_file_size_mb(dump_filename)
+        size_mb = self.get_file_size_mb(str(local_file_path))
         if size_mb:
             print(f"Tamaño del archivo: {size_mb} MB")
         

@@ -27,7 +27,7 @@ class MenuManager:
         
         Returns:
             dict with keys: 'action', 'environment', 'operation'
-            action can be: 'ssh', 'dump', 'recreate_db', 'exit'
+            action can be: 'ssh', 'dump', 'recreate_db', 'connect_local_db', 'snippets_coming_soon', 'exit'
         """
         environments = self.config.get_all_environments()
         
@@ -68,6 +68,16 @@ class MenuManager:
         recreate_option = option_num
         print(f"\n{option_num}) Recrear Base de Datos (local)")
         option_num += 1
+
+        # Connect local DB option
+        connect_local_db_option = option_num
+        print(f"{option_num}) Conectarse a BD local (consultas manuales)")
+        option_num += 1
+
+        # Snippets option (disabled for now)
+        snippets_option = option_num
+        print(f"{option_num}) Ejecutar snippets (Coming Soon - Deshabilitado)")
+        option_num += 1
         
         # Exit option
         print(f"{option_num}) Salir")
@@ -91,6 +101,14 @@ class MenuManager:
             # Check if it's recreate DB
             if choice_num == recreate_option:
                 return {'action': 'recreate_db'}
+
+            # Check if it's connect local DB
+            if choice_num == connect_local_db_option:
+                return {'action': 'connect_local_db'}
+
+            # Check if it's snippets (disabled)
+            if choice_num == snippets_option:
+                return {'action': 'snippets_coming_soon'}
             
             # Check if it's a valid environment option
             for opt in menu_options:
@@ -104,6 +122,56 @@ class MenuManager:
             self.wait_for_enter()
             return {'action': 'invalid'}
             
+        except KeyboardInterrupt:
+            print("\n\n✗ Operación cancelada por el usuario.")
+            return {'action': 'exit'}
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+            self.wait_for_enter()
+            return {'action': 'invalid'}
+
+    def display_local_menu(self) -> Dict:
+        """Display local-only menu and return user selection.
+
+        Returns:
+            dict with keys: 'action'
+            action can be: 'recreate_db', 'connect_local_db', 'snippets_coming_soon', 'exit'
+        """
+        print("\n╔════════════════════════════════════╗")
+        print("║  AWS Environment Manager v2.0      ║")
+        print("║  Modo Local                        ║")
+        print("╚════════════════════════════════════╝")
+        print("\nSelecciona una opción:\n")
+
+        print("1) Recrear Base de Datos (local)")
+        print("2) Conectarse a BD local (consultas manuales)")
+        print("3) Ejecutar snippets (Coming Soon - Deshabilitado)")
+        print("4) Salir")
+        print("\n" + "=" * 40)
+
+        try:
+            choice = input("Opción [1-4]: ").strip()
+
+            if not choice.isdigit():
+                print("✗ Opción inválida.")
+                self.wait_for_enter()
+                return {'action': 'invalid'}
+
+            choice_num = int(choice)
+
+            if choice_num == 1:
+                return {'action': 'recreate_db'}
+            if choice_num == 2:
+                return {'action': 'connect_local_db'}
+            if choice_num == 3:
+                return {'action': 'snippets_coming_soon'}
+            if choice_num == 4:
+                return {'action': 'exit'}
+
+            print("✗ Opción inválida.")
+            self.wait_for_enter()
+            return {'action': 'invalid'}
+
         except KeyboardInterrupt:
             print("\n\n✗ Operación cancelada por el usuario.")
             return {'action': 'exit'}
@@ -174,6 +242,7 @@ class MenuManager:
             print("\nArchivos SQL encontrados:\n")
             for i, sql_file in enumerate(sql_files, 1):
                 size_bytes = sql_file.stat().st_size
+                display_name = str(sql_file)
                 if size_bytes >= 1024 ** 3:
                     size_str = f"{size_bytes / (1024 ** 3):.1f} GB"
                 elif size_bytes >= 1024 ** 2:
@@ -182,7 +251,7 @@ class MenuManager:
                     size_str = f"{size_bytes / 1024:.0f} KB"
                 else:
                     size_str = f"{size_bytes} B"
-                print(f"{i}) {sql_file.name} [{size_str}]")
+                print(f"{i}) {display_name} [{size_str}]")
             
             print(f"{len(sql_files) + 1}) Ingresar ruta manual")
             print("0) Volver atrás")

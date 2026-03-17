@@ -242,7 +242,21 @@ python3 main.py
    - **Entorno X - SSH** - Conectarse vía SSH
    - **Entorno X - Descargar SQL Dump** - Descargar dump de base de datos
    - **Recrear Base de Datos (local)** - Importar dump `.sql` o `.sql.gz` a MySQL local con progreso en pantalla
+   - **Conectarse a BD local** - Abre una sesión interactiva de MySQL para ejecutar consultas manuales
+   - **Ejecutar snippets** _(Coming Soon — actualmente deshabilitado)_
    - **Salir** - Cerrar el programa
+
+### Descarga de SQL Dumps
+
+Al descargar un dump, el archivo se guarda dentro de la carpeta `db_dump/` (se crea automáticamente si no existe). El nombre del archivo local lleva como prefijo el nombre del entorno normalizado, seguido del nombre del archivo remoto. Por ejemplo:
+
+```
+db_dump/qa_example_one_dump_qa_2026-03-17.sql.gz
+         ──────────────────  ───────────────────────────────
+         prefijo (entorno)   nombre del archivo en el servidor
+```
+
+Esto permite identificar fácilmente de qué entorno proviene cada dump cuando hay múltiples descargas.
 
 ## Licencia
 
