@@ -173,7 +173,16 @@ class MenuManager:
         if sql_files:
             print("\nArchivos SQL encontrados:\n")
             for i, sql_file in enumerate(sql_files, 1):
-                print(f"{i}) {sql_file.name}")
+                size_bytes = sql_file.stat().st_size
+                if size_bytes >= 1024 ** 3:
+                    size_str = f"{size_bytes / (1024 ** 3):.1f} GB"
+                elif size_bytes >= 1024 ** 2:
+                    size_str = f"{size_bytes / (1024 ** 2):.0f} MB"
+                elif size_bytes >= 1024:
+                    size_str = f"{size_bytes / 1024:.0f} KB"
+                else:
+                    size_str = f"{size_bytes} B"
+                print(f"{i}) {sql_file.name} [{size_str}]")
             
             print(f"{len(sql_files) + 1}) Ingresar ruta manual")
             print("0) Volver atrás")
