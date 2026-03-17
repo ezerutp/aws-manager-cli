@@ -1,41 +1,43 @@
 """Database Recreation Operations Module"""
+import gzip
 import subprocess
+import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 
 class DatabaseOperations:
     """Handles local database recreation operations"""
-    
+
     def __init__(self, config_manager):
         self.config = config_manager
-    
+
     def get_sql_files_in_directory(self, directory: str = ".") -> List[Path]:
-        """Get all SQL files in directory"""
+        """Get all SQL and SQL.GZ files in directory"""
         try:
             path = Path(directory)
-            sql_files = sorted(path.glob("*.sql"))
+            sql_files = sorted(list(path.glob("*.sql")) + list(path.glob("*.sql.gz")))
             return sql_files
         except Exception as e:
             print(f"✗ Error al listar archivos SQL: {e}")
             return []
-    
+
     def execute_mysql_command(self, command: str, database: str = "") -> bool:
         """Execute MySQL command"""
         mysql_user = self.config.get_mysql_user()
         mysql_protocol = self.config.get_mysql_protocol()
-        
+
         cmd = [
             'mysql',
             f'-u{mysql_user}',
             f'--protocol={mysql_protocol}'
         ]
-        
+
         if database:
             cmd.append(database)
-        
+
         cmd.extend(['-e', command])
-        
+
         try:
             result = subprocess.run(
                 cmd,
@@ -50,30 +52,107 @@ class DatabaseOperations:
         except Exception as e:
             print(f"✗ Error al ejecutar MySQL: {e}")
             return False
-    
+
     def import_sql_file(self, database: str, sql_file: str) -> bool:
-        """Import SQL file into database"""
+        """Import SQL/SQL.GZ file into database using streaming with progress"""
         mysql_user = self.config.get_mysql_user()
         mysql_protocol = self.config.get_mysql_protocol()
-        
+        file_path = Path(sql_file)
+
         try:
-            # Open SQL file and pipe to MySQL
-            with open(sql_file, 'r') as f:
-                result = subprocess.run(
-                    ['mysql',
-                     f'-u{mysql_user}',
-                     f'--protocol={mysql_protocol}',
-                     database],
-                    stdin=f,
-                    capture_output=True,
-                    text=True,
-                    timeout=600  # 10 minutes for large files
+            if not file_path.exists():
+                print(f"✗ Archivo no encontrado: {sql_file}")
+                return False
+
+            is_gz_file = file_path.suffix.lower() == '.gz'
+            total_bytes = file_path.stat().st_size if not is_gz_file else None
+            source_file = gzip.open(file_path, 'rb') if is_gz_file else open(file_path, 'rb')
+
+            process = subprocess.Popen(
+                [
+                    'mysql',
+                    f'-u{mysql_user}',
+                    f'--protocol={mysql_protocol}',
+                    database
+                ],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE
+            )
+
+            bytes_sent = 0
+            chunk_size = 1024 * 1024
+            start_time = time.time()
+            last_update = start_time
+
+            with source_file:
+                while True:
+                    chunk = source_file.read(chunk_size)
+                    if not chunk:
+                        break
+
+                    if process.stdin is None:
+                        raise RuntimeError("No se pudo abrir stdin del proceso mysql")
+
+                    process.stdin.write(chunk)
+                    bytes_sent += len(chunk)
+
+                    now = time.time()
+                    if now - last_update >= 1:
+                        elapsed = max(now - start_time, 0.001)
+                        speed_mb_s = (bytes_sent / (1024 * 1024)) / elapsed
+
+                        if total_bytes:
+                            percent = (bytes_sent / total_bytes) * 100
+                            print(
+                                f"\rProgreso import: {percent:6.2f}% "
+                                f"({bytes_sent / (1024 * 1024):.1f} MB / {total_bytes / (1024 * 1024):.1f} MB) "
+                                f"- {speed_mb_s:.2f} MB/s",
+                                end='',
+                                flush=True
+                            )
+                        else:
+                            print(
+                                f"\rProgreso import: {bytes_sent / (1024 * 1024):.1f} MB enviados "
+                                f"- {speed_mb_s:.2f} MB/s",
+                                end='',
+                                flush=True
+                            )
+
+                        last_update = now
+
+            if process.stdin is not None:
+                process.stdin.close()
+
+            return_code = process.wait()
+            stderr_output = ""
+            if process.stderr is not None:
+                stderr_output = process.stderr.read().decode(errors='replace').strip()
+
+            total_time = max(time.time() - start_time, 0.001)
+            final_speed = (bytes_sent / (1024 * 1024)) / total_time
+
+            if total_bytes:
+                print(
+                    f"\rProgreso import: 100.00% ({bytes_sent / (1024 * 1024):.1f} MB / {total_bytes / (1024 * 1024):.1f} MB) "
+                    f"- {final_speed:.2f} MB/s"
                 )
-            
-            return result.returncode == 0
-            
-        except subprocess.TimeoutExpired:
-            print("✗ Timeout al importar archivo SQL (>10 minutos).")
+            else:
+                print(
+                    f"\rProgreso import: {bytes_sent / (1024 * 1024):.1f} MB enviados "
+                    f"- {final_speed:.2f} MB/s"
+                )
+
+            if return_code != 0:
+                if stderr_output:
+                    print(f"✗ MySQL reportó error: {stderr_output}")
+                return False
+
+            print(f"Tiempo total de importación: {total_time:.1f} segundos")
+            return True
+
+        except BrokenPipeError:
+            print("\n✗ Se perdió la conexión con el proceso MySQL durante la importación.")
             return False
         except FileNotFoundError:
             print(f"✗ Archivo no encontrado: {sql_file}")
@@ -81,39 +160,33 @@ class DatabaseOperations:
         except Exception as e:
             print(f"✗ Error al importar archivo SQL: {e}")
             return False
-    
+
     def recreate_database(self, db_name: str, sql_file: str) -> bool:
         """Recreate database with SQL file"""
         print("\n=== Recreando Base de Datos ===")
-        
-        # Verify SQL file exists
+
         if not Path(sql_file).exists():
             print(f"✗ Error: Archivo no existe: {sql_file}")
             return False
-        
+
         print(f"Base de datos: {db_name}")
         print(f"Archivo SQL:   {sql_file}")
-        
-        # Drop database
+
         print("\nEliminando base de datos existente...")
         if not self.execute_mysql_command(f"DROP DATABASE IF EXISTS {db_name};"):
             print("⚠ Advertencia: No se pudo eliminar la base de datos (puede no existir).")
-        
-        # Create database
+
         print("Creando base de datos...")
         if not self.execute_mysql_command(f"CREATE DATABASE {db_name};"):
             print("✗ Error: No se pudo crear la base de datos.")
             return False
-        
+
         print("✓ Base de datos creada.")
-        
-        # Import SQL file
         print("Importando datos desde archivo SQL...")
-        print("(Esto puede tomar varios minutos para archivos grandes)")
-        
+
         if not self.import_sql_file(db_name, sql_file):
             print("✗ Error al importar datos.")
             return False
-        
+
         print(f"✓ Base de datos '{db_name}' recreada exitosamente.")
         return True
