@@ -235,6 +235,11 @@ export AWS_DEFAULT_REGION='us-east-1'
 python3 main.py
 ```
 
+### Opciones CLI
+
+- `--local` / `-l`: Ejecuta en modo local (sin MFA), mostrando solo operaciones locales.
+- `--config` / `-c`: Muestra qué archivos de configuración está usando la aplicación y pregunta si deseas abrir la carpeta contenedora.
+
 ### Flujo de Uso
 
 1. **Autenticación MFA** - Se solicita una sola vez al inicio

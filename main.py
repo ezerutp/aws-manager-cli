@@ -12,7 +12,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-from src.config import ConfigManager
+from src.config import ConfigManager, show_config_usage
 from src.auth import MFAAuthenticator
 from src.aws import EC2Manager, SecurityGroupManager
 from src.operations import SSHOperations, DumpOperations, DatabaseOperations
@@ -55,6 +55,10 @@ def main():
     print("╔════════════════════════════════════════╗")
     print("║  AWS Environment Manager (Python v2.0) ║")
     print("╚════════════════════════════════════════╝")
+
+    if cli_options.show_config:
+        config = ConfigManager()
+        return show_config_usage(config)
 
     if cli_options.local_mode:
         print("Modo local activado: se omite MFA y se muestran solo opciones locales.")
