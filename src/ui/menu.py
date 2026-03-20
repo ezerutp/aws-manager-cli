@@ -27,10 +27,10 @@ class MenuManager:
     @staticmethod
     def display_app_header():
         """Display main application header"""
-        from .. import __version__
-        print("╔════════════════════════════════════════════╗")
-        print(f"║  AWS Environment Manager (Python v{__version__})   ║")
-        print("╚════════════════════════════════════════════╝")
+        from .. import __version__, __codename__
+        print("╔════════════════════════════════════════════════╗")
+        print(f"║  AWS Environment Manager ({__codename__} v{__version__})      ║")
+        print("╚════════════════════════════════════════════════╝")
     
     @staticmethod
     def display_menu_header(subtitle: str = ""):
@@ -39,15 +39,15 @@ class MenuManager:
         Args:
             subtitle: Optional subtitle (e.g., 'Python Edition', 'Modo Local')
         """
-        from .. import __version__
-        print("\n╔════════════════════════════════════════════╗")
-        print(f"║  AWS Environment Manager (Python v{__version__})   ║")
+        from .. import __version__, __codename__
+        print("\n╔════════════════════════════════════════════════╗")
+        print(f"║  AWS Environment Manager ({__codename__} v{__version__})      ║")
         if subtitle:
             # Center subtitle
-            padding = (44 - len(subtitle)) // 2
+            padding = (48 - len(subtitle)) // 2
             subtitle_line = " " * padding + subtitle
-            print(f"║{subtitle_line:<44}║")
-        print("╚════════════════════════════════════════════╝")
+            print(f"║{subtitle_line:<48}║")
+        print("╚════════════════════════════════════════════════╝")
     
     @staticmethod
     def display_section_header(title: str):

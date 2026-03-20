@@ -1,5 +1,7 @@
 # AWS Manager CLI
 
+**Versión 2.0.0 "Phoenix"** 🔥
+
 Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreación de bases de datos en entornos AWS.
 
 ## Características
