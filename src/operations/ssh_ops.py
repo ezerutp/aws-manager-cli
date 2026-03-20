@@ -86,15 +86,13 @@ class SSHOperations:
         instance_name = environment.get('instance_name', instance_id)
         
         # Display connection details
-        print("\n╔═══════════════════════════════════════════════╗")
-        print("║          SSH Connection Details               ║")
-        print("╠═══════════════════════════════════════════════╣")
-        print(f"║ Environment: {env_name}")
-        print(f"║ Instance:    {instance_name}")
-        print(f"║ Host:        {dns}")
-        print(f"║ User:        {ssh_user}")
-        print(f"║ Port:        {ssh_port}")
-        print("╚═══════════════════════════════════════════════╝")
+        from ..ui.menu import MenuManager
+        MenuManager.display_section_header("SSH Connection Details")
+        print(f"\nEnvironment: {env_name}")
+        print(f"Instance:    {instance_name}")
+        print(f"Host:        {dns}")
+        print(f"User:        {ssh_user}")
+        print(f"Port:        {ssh_port}")
         
         # Build SSH command
         ssh_cmd = [

@@ -18,7 +18,8 @@ class DatabaseOperations:
             search_paths = []
 
             if directory == ".":
-                search_paths = [Path("db_dump"), Path(".")]
+                dump_dir = self.config.get_dump_directory()
+                search_paths = [dump_dir, Path(".")]
             else:
                 search_paths = [Path(directory)]
 

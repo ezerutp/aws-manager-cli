@@ -126,9 +126,8 @@ class MFAAuthenticator:
             return credentials
         
         # Display MFA prompt
-        print("\n╔════════════════════════════════╗")
-        print("║   MFA Authentication Required  ║")
-        print("╚════════════════════════════════╝")
+        from ..ui.menu import MenuManager
+        MenuManager.display_section_header("MFA Authentication Required")
         
         # Request MFA code
         mfa_code = input("\nIngresa tu código MFA de 6 dígitos: ").strip()

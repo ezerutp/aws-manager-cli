@@ -1,5 +1,5 @@
 # AWS Manager CLI - Python Requirements
-# Version 2.0
+# Version is managed in src/__init__.py
 
 # HTTP requests (for getting public IP)
 requests>=2.31.0

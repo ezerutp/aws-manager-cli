@@ -121,8 +121,7 @@ class DumpOperations:
         user_input = input().strip()
         dump_filename = user_input if user_input else suggested_filename
 
-        dump_dir = Path.cwd() / 'db_dump'
-        dump_dir.mkdir(exist_ok=True)
+        dump_dir = self.config.get_dump_directory()
 
         env_prefix = self.normalize_environment_name(env_name)
         local_filename = f"{env_prefix}_{dump_filename}"

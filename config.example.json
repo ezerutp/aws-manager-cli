@@ -23,5 +23,8 @@
     },
     "mfa": {
         "required": true
+    },
+    "paths": {
+        "dump_directory": ""
     }
 }

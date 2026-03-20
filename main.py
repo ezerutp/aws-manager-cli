@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
 AWS Environment Manager - Python Edition
-Version 2.0
 
 Migrated from shell scripts and C++ to Python for better maintainability.
+Version is managed in src/__init__.py
 """
 import sys
 import os
@@ -12,6 +12,7 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
+from src import __version__
 from src.config import ConfigManager, show_config_usage
 from src.auth import MFAAuthenticator
 from src.aws import EC2Manager, SecurityGroupManager
@@ -52,9 +53,7 @@ def main():
     cli_options = parse_cli_args(sys.argv[1:])
 
     # Display header
-    print("╔════════════════════════════════════════╗")
-    print("║  AWS Environment Manager (Python v2.0) ║")
-    print("╚════════════════════════════════════════╝")
+    MenuManager.display_app_header()
 
     if cli_options.show_config:
         config = ConfigManager()

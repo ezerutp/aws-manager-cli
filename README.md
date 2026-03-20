@@ -11,6 +11,7 @@ Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreaci
 - 📝 **Configuración JSON** - Fácil de editar y mantener
 - 📊 **Progreso de importación BD** - Muestra avance en tiempo real durante recreación local
 - 🗜️ **Soporte `.sql.gz`** - Permite importar dumps comprimidos directamente
+- 📁 **Gestión centralizada de dumps** - Carpeta configurable para almacenar todos los dumps SQL (por defecto `~/db_dump`)
 
 ## Estructura del proyecto
 
@@ -38,7 +39,12 @@ aws-manager-cli/
     │   └── db_ops.py             # Recreación de BD
     └── ui/
         └── menu.py               # Menús dinámicos
+
+# Directorio de dumps (creado automáticamente)
+~/db_dump/                         # Ubicación predeterminada de dumps SQL
 ```
+
+**Nota:** La carpeta `~/db_dump` se crea automáticamente al descargar el primer dump y es configurable en `config.json`.
 
 ## Requisitos del sistema
 
@@ -176,8 +182,37 @@ Edita `config.json` con tus credenciales:
   },
   "mfa": {
     "required": true
+  },
+  "paths": {
+    "dump_directory": ""
   }
 }
+```
+
+**Opciones de configuración:**
+
+- **paths.dump_directory**: Directorio donde se guardarán los dumps SQL descargados. 
+  - **Por defecto**: `~/db_dump` (en el directorio home del usuario) si está vacío o no se especifica
+  - **Ruta absoluta**: se usa tal cual (ej: `/home/user/backups/dumps`)
+  - **Ruta relativa**: se resuelve desde la ubicación del archivo `config.json` (ej: `./backups` → `~/.config/aws-manager/backups`)
+  - **Tilde expansion**: soporta `~` para el home del usuario (ej: `~/backups/sql`)
+  - El directorio se creará automáticamente si no existe
+  - La carpeta se resuelve al iniciar la aplicación y se mantiene consistente sin importar desde dónde ejecutes el programa
+
+**Ejemplos de configuración:**
+
+```json
+// Usar la ubicación predeterminada (~/db_dump)
+"dump_directory": ""
+
+// Carpeta personalizada en el home
+"dump_directory": "~/backups/aws-dumps"
+
+// Ruta absoluta en otro disco
+"dump_directory": "/mnt/backups/sql-dumps"
+
+// Ruta relativa al config.json
+"dump_directory": "./dumps"
 ```
 
 ### 2. Configurar entornos (config-environment.json)
@@ -253,15 +288,63 @@ python3 main.py
 
 ### Descarga de SQL Dumps
 
-Al descargar un dump, el archivo se guarda dentro de la carpeta `db_dump/` (se crea automáticamente si no existe). El nombre del archivo local lleva como prefijo el nombre del entorno normalizado, seguido del nombre del archivo remoto. Por ejemplo:
+#### Ubicación de archivos
+
+Al descargar un dump, el archivo se guarda en el directorio configurado en `paths.dump_directory`. Si no se especifica, usa `~/db_dump` en el home del usuario. 
+
+**Ventajas de la ubicación centralizada:**
+- 📁 Todos los dumps en un solo lugar, fácil de encontrar
+- 🔄 Consistente sin importar desde dónde ejecutes el programa
+- 🗂️ Fácil de respaldar o sincronizar
+- 🧹 Fácil de limpiar archivos antiguos
+
+El directorio se crea automáticamente si no existe.
+
+#### Nomenclatura de archivos
+
+El nombre del archivo local lleva como prefijo el nombre del entorno normalizado, seguido del nombre del archivo remoto:
 
 ```
-db_dump/qa_example_one_dump_qa_2026-03-17.sql.gz
-         ──────────────────  ───────────────────────────────
-         prefijo (entorno)   nombre del archivo en el servidor
+~/db_dump/qa_example_one_dump_qa_2026-03-17.sql.gz
+          ──────────────────  ───────────────────────────────
+          prefijo (entorno)   nombre del archivo en el servidor
 ```
 
 Esto permite identificar fácilmente de qué entorno proviene cada dump cuando hay múltiples descargas.
+
+#### Resolución de rutas
+
+El directorio de dumps se resuelve de manera inteligente:
+
+| Configuración | Resultado | Ejemplo |
+|--------------|-----------|----------|
+| Vacío o no especificado | `~/db_dump` | `/home/ezer/db_dump` |
+| Ruta absoluta | Se usa tal cual | `/var/backups/dumps` → `/var/backups/dumps` |
+| Con tilde `~` | Expande al home | `~/backups` → `/home/ezer/backups` |
+| Ruta relativa | Relativa al config.json | `./dumps` → `~/.config/aws-manager/dumps` |
+
+**Importante:** La ruta se resuelve al cargar la configuración, por lo que puedes ejecutar el programa desde cualquier directorio y los dumps siempre irán al mismo lugar.
+
+### Recreación de Base de Datos Local
+
+Al recrear una base de datos, el programa busca automáticamente archivos `.sql` y `.sql.gz` en:
+
+1. **Primero**: En el directorio de dumps configurado (ej: `~/db_dump`)
+2. **Después**: En el directorio actual (`.`)
+
+Esto significa que tus dumps descargados aparecerán automáticamente en el menú de selección de archivos, sin necesidad de especificar rutas manualmente.
+
+## Preguntas Frecuentes (FAQ)
+
+### 💾 ¿Dónde se guardan mis dumps SQL?
+
+Por defecto en `~/db_dump` (en tu directorio home). Puedes cambiar esto en `config.json`:
+
+```json
+"paths": {
+    "dump_directory": "~/mis-backups"  // o cualquier otra ruta
+}
+```
 
 ## Licencia
 

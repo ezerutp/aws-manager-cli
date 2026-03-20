@@ -26,6 +26,7 @@ class ConfigManager:
         self.environments_data = []
         self.loaded_config_path: Optional[Path] = None
         self.loaded_environments_path: Optional[Path] = None
+        self._dump_directory: Optional[Path] = None
         # No usamos _base_path, buscaremos en múltiples ubicaciones
 
     def _get_search_paths(self, filename: str) -> List[Path]:
@@ -192,3 +193,39 @@ class ConfigManager:
         if 0 <= index < len(self.environments_data):
             return self.environments_data[index]
         return None
+    
+    # === Paths ===
+    
+    def get_dump_directory(self) -> Path:
+        """Get the dump directory path, creating it if needed.
+        
+        Returns the configured dump directory path. If not configured or empty,
+        defaults to '~/db_dump' in the user's home directory.
+        """
+        if self._dump_directory is not None:
+            return self._dump_directory
+        
+        # Get configured path, use ~/db_dump as default if empty or not set
+        dump_path_str = self.config_data.get('paths', {}).get('dump_directory', '').strip()
+        
+        if not dump_path_str:
+            # Default to ~/db_dump if empty or not configured
+            dump_path = Path.home() / 'db_dump'
+        else:
+            dump_path = Path(dump_path_str).expanduser()
+            
+            # If relative path, make it relative to config file location
+            if not dump_path.is_absolute():
+                if self.loaded_config_path:
+                    # Relative to config file directory
+                    dump_path = (self.loaded_config_path.parent / dump_path).resolve()
+                else:
+                    # Fallback to user's home directory
+                    dump_path = Path.home() / dump_path
+        
+        # Create directory if it doesn't exist
+        dump_path.mkdir(parents=True, exist_ok=True)
+        
+        # Cache the resolved path
+        self._dump_directory = dump_path
+        return self._dump_directory

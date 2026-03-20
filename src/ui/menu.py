@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
+from .. import __version__
+
 
 class MenuManager:
     """Handles all menu display and user input"""
@@ -22,6 +24,47 @@ class MenuManager:
         """Wait for user to press Enter"""
         input("\nPresiona Enter para continuar...")
     
+    @staticmethod
+    def display_app_header():
+        """Display main application header"""
+        from .. import __version__
+        print("╔════════════════════════════════════════════╗")
+        print(f"║  AWS Environment Manager (Python v{__version__})   ║")
+        print("╚════════════════════════════════════════════╝")
+    
+    @staticmethod
+    def display_menu_header(subtitle: str = ""):
+        """Display menu header with optional subtitle
+        
+        Args:
+            subtitle: Optional subtitle (e.g., 'Python Edition', 'Modo Local')
+        """
+        from .. import __version__
+        print("\n╔════════════════════════════════════════════╗")
+        print(f"║  AWS Environment Manager (Python v{__version__})   ║")
+        if subtitle:
+            # Center subtitle
+            padding = (44 - len(subtitle)) // 2
+            subtitle_line = " " * padding + subtitle
+            print(f"║{subtitle_line:<44}║")
+        print("╚════════════════════════════════════════════╝")
+    
+    @staticmethod
+    def display_section_header(title: str):
+        """Display section header
+        
+        Args:
+            title: Title of the section
+        """
+        width = max(len(title) + 4, 40)
+        border = "═" * (width - 2)
+        padding = (width - 2 - len(title)) // 2
+        title_line = " " * padding + title + " " * (width - 2 - len(title) - padding)
+        
+        print(f"\n╔{border}╗")
+        print(f"║{title_line}║")
+        print(f"╚{border}╝")
+    
     def display_main_menu(self) -> Dict:
         """Display main menu and return user selection
         
@@ -31,10 +74,7 @@ class MenuManager:
         """
         environments = self.config.get_all_environments()
         
-        print("\n╔════════════════════════════════════╗")
-        print("║  AWS Environment Manager v2.0      ║")
-        print("║  Python Edition                    ║")
-        print("╚════════════════════════════════════╝")
+        self.display_menu_header("Python Edition")
         print("\nSelecciona una opción:\n")
         
         # Dynamic environment options
@@ -137,10 +177,7 @@ class MenuManager:
             dict with keys: 'action'
             action can be: 'recreate_db', 'connect_local_db', 'snippets_coming_soon', 'exit'
         """
-        print("\n╔════════════════════════════════════╗")
-        print("║  AWS Environment Manager v2.0      ║")
-        print("║  Modo Local                        ║")
-        print("╚════════════════════════════════════╝")
+        self.display_menu_header("Modo Local")
         print("\nSelecciona una opción:\n")
 
         print("1) Recrear Base de Datos (local)")
@@ -298,6 +335,4 @@ class MenuManager:
     
     def display_header(self):
         """Display application header"""
-        print("\n╔════════════════════════════════════════╗")
-        print("║  AWS Environment Manager (Python v2.0) ║")
-        print("╚════════════════════════════════════════╝")
+        self.display_app_header()
