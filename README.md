@@ -120,6 +120,8 @@ Instala el binario compilado en el sistema para uso global.
 **Qué hace:**
 
 - ✓ Copia `dist/aws-manager` a `/usr/local/bin/` (requiere sudo)
+- ✓ Permite crear un alias/symlink personalizado (ej: `awsm`, `ops-manager`)
+- ✓ Valida nombres de alias para evitar conflictos con comandos del sistema
 - ✓ Crea directorio `~/.config/aws-manager/` para configuración
 - ✓ Copia archivos de configuración al directorio del usuario
 - ✓ Asigna permisos correctos (evita usar root como propietario)
@@ -131,7 +133,20 @@ Instala el binario compilado en el sistema para uso global.
 sudo ./install.sh
 ```
 
-**Resultado:** Comando `aws-manager` disponible globalmente en el sistema
+**Durante la instalación:**
+
+El instalador te preguntará si deseas crear un alias personalizado:
+
+```
+Nombre del alias (Enter para omitir): awsm
+✓ Alias creado: awsm -> aws-manager
+```
+
+Puedes usar cualquier nombre válido (letras, números, guiones) excepto comandos del sistema como `aws`, `ssh`, `docker`, etc.
+
+**Resultado:** 
+- Comando `aws-manager` disponible globalmente
+- Alias personalizado disponible (si se configuró)
 
 ---
 
@@ -219,34 +234,84 @@ Edita `config.json` con tus credenciales:
 
 ### 2. Configurar entornos (config-environment.json)
 
-Agrega tantos entornos como necesites:
+Agrega tantos entornos como necesites organizados jerárquicamente:
 
 ```json
 {
   "environments": [
     {
-      "id": "example_one_qa",
-      "name": "QA (Example One)",
-      "app": "example_one",
-      "env_type": "qa",
-      "instance_id": "i-xxxxxxxxx",
-      "security_group_id": "sg-xxxxxxxxx",
-      "dns": "", // Vacío = DNS dinámico
-      "instance_name": "Bastion-QA"
+      "id": "example_one",
+      "name": "Example One",
+      "types": [
+        {
+          "id": "example_one_prod",
+          "name": "PROD",
+          "env_type": "prod",
+          "instance_id": "i-xxxxxxxxx",
+          "security_group_id": "sg-xxxxxxxxx",
+          "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
+          "instance_name": "Bastion-PROD-Example-One"
+        },
+        {
+          "id": "example_one_qa",
+          "name": "QA",
+          "env_type": "qa",
+          "instance_id": "i-xxxxxxxxx",
+          "security_group_id": "sg-xxxxxxxxx",
+          "dns": "",
+          "instance_name": "Bastion-QA-Example-One"
+        }
+      ]
     },
     {
-      "id": "example_one_prod",
-      "name": "PROD (Example One)",
-      "app": "example_one",
-      "env_type": "prod",
-      "instance_id": "i-xxxxxxxxx",
-      "security_group_id": "sg-xxxxxxxxx",
-      "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com", // DNS estático
-      "instance_name": "Bastion-PROD"
+      "id": "example_two",
+      "name": "Example Two",
+      "types": [
+        {
+          "id": "example_two_prod",
+          "name": "PROD",
+          "env_type": "prod",
+          "instance_id": "i-xxxxxxxxx",
+          "security_group_id": "sg-xxxxxxxxx",
+          "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
+          "instance_name": "Bastion-PROD-Example-Two"
+        },
+        {
+          "id": "example_two_qa",
+          "name": "QA",
+          "env_type": "qa",
+          "instance_id": "i-xxxxxxxxx",
+          "security_group_id": "sg-xxxxxxxxx",
+          "dns": "",
+          "instance_name": "Bastion-QA-Example-Two"
+        }
+      ]
     }
   ]
 }
 ```
+
+**Estructura jerárquica:**
+
+- **Nivel 1 (Entorno padre)**: Agrupa entornos relacionados (ej: ProjectX, ProjectZ, ProjectY)
+  - `id`: Identificador único del entorno padre
+  - `name`: Nombre que se mostrará en el menú principal
+  - `types`: Array de tipos de entorno
+
+- **Nivel 2 (Tipos)**: Tipos específicos dentro de cada entorno (ej: PROD, QA, DEV)
+  - `id`: Identificador único del tipo
+  - `name`: Nombre del tipo (PROD, QA, etc.)
+  - `env_type`: Tipo de entorno para lógica interna
+  - `instance_id`: ID de la instancia EC2
+  - `security_group_id`: ID del grupo de seguridad
+  - `dns`: DNS estático o vacío para DNS dinámico
+  - `instance_name`: Nombre de la instancia en AWS
+
+**Navegación del menú:**
+
+1. **Primer nivel**: Selecciona el entorno padre (Example One, Example Two)
+2. **Segundo nivel**: Selecciona el tipo (PROD, QA)
+3. **Tercer nivel**: Selecciona la acción (SSH, Descargar Dump)
 
 ### 3. Configurar AWS CLI (Alternativa)
 
@@ -280,13 +345,23 @@ python3 main.py
 ### Flujo de Uso
 
 1. **Autenticación MFA** - Se solicita una sola vez al inicio
-2. **Menú Principal** - Opciones dinámicas basadas en entornos configurados:
-   - **Entorno X - SSH** - Conectarse vía SSH
-   - **Entorno X - Descargar SQL Dump** - Descargar dump de base de datos
-   - **Recrear Base de Datos (local)** - Importar dump `.sql` o `.sql.gz` a MySQL local con progreso en pantalla
-   - **Conectarse a BD local** - Abre una sesión interactiva de MySQL para ejecutar consultas manuales
-   - **Ejecutar snippets** _(Coming Soon — actualmente deshabilitado)_
+2. **Menú Principal** - Navegación jerárquica en 3 niveles:
+   - **Nivel 1**: Selecciona el entorno (ProjectX, ProjectZ, ProjectY) o acción local
+   - **Nivel 2**: Selecciona el tipo de entorno (PROD, QA)
+   - **Nivel 3**: Selecciona la acción disponible:
+     - **SSH** - Conectarse vía SSH al servidor
+     - **Descargar SQL Dump** - Descargar dump de base de datos
+   - **Acciones Locales** (disponibles en nivel 1):
+     - **Recrear Base de Datos (local)** - Importar dump `.sql` o `.sql.gz` a MySQL local con progreso en pantalla
+     - **Conectarse a BD local** - Abre una sesión interactiva de MySQL para ejecutar consultas manuales
+     - **Ejecutar snippets** _(Coming Soon — actualmente deshabilitado)_
    - **Salir** - Cerrar el programa
+
+**Ventajas de la navegación jerárquica:**
+- 🎯 Menús más limpios y organizados
+- 🔙 Navegación hacia atrás con opción "Volver atrás"
+- 📊 Mejor escalabilidad al agregar más entornos
+- 🎨 Contexto visual claro en cada nivel
 
 ### Descarga de SQL Dumps
 

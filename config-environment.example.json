@@ -1,44 +1,52 @@
 {
     "environments": [
         {
-            "id": "example_one_qa",
-            "name": "QA (Example One)",
-            "app": "example_one",
-            "env_type": "qa",
-            "instance_id": "i-xxxxxxxxxxxxxxxxx",
-            "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
-            "dns": "",
-            "instance_name": "Bastion-QA-Example-One"
+            "id": "example_one",
+            "name": "Example One",
+            "types": [
+                {
+                    "id": "example_one_prod",
+                    "name": "PROD",
+                    "env_type": "prod",
+                    "instance_id": "i-xxxxxxxxxxxxxxxxx",
+                    "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
+                    "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
+                    "instance_name": "Bastion-PROD-Example-One"
+                },
+                {
+                    "id": "example_one_qa",
+                    "name": "QA",
+                    "env_type": "qa",
+                    "instance_id": "i-xxxxxxxxxxxxxxxxx",
+                    "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
+                    "dns": "",
+                    "instance_name": "Bastion-QA-Example-One"
+                }
+            ]
         },
         {
-            "id": "example_one_prod",
-            "name": "PROD (Example One)",
-            "app": "example_one",
-            "env_type": "prod",
-            "instance_id": "i-xxxxxxxxxxxxxxxxx",
-            "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
-            "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
-            "instance_name": "Bastion-PROD-Example-One"
-        },
-        {
-            "id": "example_two_qa",
-            "name": "QA (Example Two)",
-            "app": "example_two",
-            "env_type": "qa",
-            "instance_id": "i-xxxxxxxxxxxxxxxxx",
-            "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
-            "dns": "",
-            "instance_name": "Bastion-QA-Example-Two"
-        },
-        {
-            "id": "example_two_prod",
-            "name": "PROD (Example Two)",
-            "app": "example_two",
-            "env_type": "prod",
-            "instance_id": "i-xxxxxxxxxxxxxxxxx",
-            "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
-            "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
-            "instance_name": "Bastion-PROD-Example-Two"
+            "id": "example_two",
+            "name": "Example Two",
+            "types": [
+                {
+                    "id": "example_two_prod",
+                    "name": "PROD",
+                    "env_type": "prod",
+                    "instance_id": "i-xxxxxxxxxxxxxxxxx",
+                    "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
+                    "dns": "ec2-xx-xx-xx-xx.compute-1.amazonaws.com",
+                    "instance_name": "Bastion-PROD-Example-Two"
+                },
+                {
+                    "id": "example_two_qa",
+                    "name": "QA",
+                    "env_type": "qa",
+                    "instance_id": "i-xxxxxxxxxxxxxxxxx",
+                    "security_group_id": "sg-xxxxxxxxxxxxxxxxx",
+                    "dns": "",
+                    "instance_name": "Bastion-QA-Example-Two"
+                }
+            ]
         }
     ]
 }

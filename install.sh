@@ -6,6 +6,44 @@ set -e
 BINARY_NAME="aws-manager"
 INSTALL_DIR="/usr/local/bin"
 
+# Lista de comandos prohibidos para evitar conflictos
+FORBIDDEN_NAMES=("aws" "ssh" "mysql" "docker" "kubectl" "git" "python" "pip" "sudo" "bash" "sh")
+
+# Función para validar el nombre del alias
+validate_alias_name() {
+    local name=$1
+    
+    # Verificar que no esté vacío
+    if [ -z "$name" ]; then
+        return 1
+    fi
+    
+    # Verificar que no sea un comando prohibido
+    for forbidden in "${FORBIDDEN_NAMES[@]}"; do
+        if [ "$name" = "$forbidden" ]; then
+            echo "✗ Error: '$name' es un comando del sistema. Elige otro nombre."
+            return 1
+        fi
+    done
+    
+    # Verificar que no contenga espacios o caracteres especiales
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "✗ Error: El nombre solo puede contener letras, números, guiones y guiones bajos."
+        return 1
+    fi
+    
+    # Verificar si el comando ya existe en el sistema
+    if command -v "$name" &> /dev/null; then
+        echo "⚠ Advertencia: El comando '$name' ya existe en el sistema."
+        read -p "¿Deseas sobrescribirlo? (s/N): " overwrite
+        if [[ ! "$overwrite" =~ ^[sS]$ ]]; then
+            return 1
+        fi
+    fi
+    
+    return 0
+}
+
 # Detectar el usuario real incluso cuando se ejecuta con sudo
 if [ -n "$SUDO_USER" ]; then
     REAL_USER="$SUDO_USER"
@@ -45,6 +83,40 @@ echo "Instalando binario en $INSTALL_DIR..."
 cp "dist/$BINARY_NAME" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR/$BINARY_NAME"
 echo "✓ Binario instalado: $INSTALL_DIR/$BINARY_NAME"
+
+# Ask for custom alias
+echo ""
+echo "═══════════════════════════════════════"
+echo "  Configuración de Alias Personalizado"
+echo "═══════════════════════════════════════"
+echo ""
+echo "Puedes crear un alias/symlink con un nombre personalizado."
+echo "El binario '$BINARY_NAME' seguirá disponible con su nombre original."
+echo ""
+echo "Ejemplos: awsm, ops-manager, my-aws, etc."
+echo "Nota: No uses nombres de comandos del sistema (aws, ssh, docker, etc.)"
+echo ""
+
+ALIAS_NAME=""
+while true; do
+    read -p "Nombre del alias (Enter para omitir): " ALIAS_NAME
+    
+    # Si el usuario presiona Enter sin escribir nada, omitir
+    if [ -z "$ALIAS_NAME" ]; then
+        echo "✓ Alias omitido. Usa '$BINARY_NAME' para ejecutar el programa."
+        break
+    fi
+    
+    # Validar el nombre
+    if validate_alias_name "$ALIAS_NAME"; then
+        # Crear symlink
+        ln -sf "$INSTALL_DIR/$BINARY_NAME" "$INSTALL_DIR/$ALIAS_NAME"
+        echo "✓ Alias creado: $ALIAS_NAME -> $BINARY_NAME"
+        break
+    fi
+    
+    echo "Intenta con otro nombre..."
+done
 
 # Create config directory
 echo ""
@@ -105,6 +177,9 @@ echo "╚═══════════════════════�
 echo ""
 echo "Para usar el programa, ejecuta:"
 echo "  $BINARY_NAME"
+if [ -n "$ALIAS_NAME" ]; then
+    echo "  $ALIAS_NAME  (alias personalizado)"
+fi
 echo ""
 echo "Archivos de configuración en:"
 echo "  $CONFIG_DIR"

@@ -178,20 +178,35 @@ class ConfigManager:
     # === Environments ===
     
     def get_all_environments(self) -> List[Dict]:
-        """Get all configured environments"""
+        """Get all configured parent environments"""
         return self.environments_data
     
     def get_environment_by_id(self, env_id: str) -> Optional[Dict]:
-        """Get specific environment by ID"""
+        """Get specific parent environment by ID"""
         for env in self.environments_data:
             if env.get('id') == env_id:
                 return env
         return None
     
     def get_environment_by_index(self, index: int) -> Optional[Dict]:
-        """Get environment by index (0-based)"""
+        """Get parent environment by index (0-based)"""
         if 0 <= index < len(self.environments_data):
             return self.environments_data[index]
+        return None
+    
+    def get_environment_types(self, parent_env_id: str) -> List[Dict]:
+        """Get all types (PROD, QA, etc.) for a parent environment"""
+        parent_env = self.get_environment_by_id(parent_env_id)
+        if parent_env:
+            return parent_env.get('types', [])
+        return []
+    
+    def get_environment_type_by_id(self, parent_env_id: str, type_id: str) -> Optional[Dict]:
+        """Get specific environment type by ID"""
+        types = self.get_environment_types(parent_env_id)
+        for env_type in types:
+            if env_type.get('id') == type_id:
+                return env_type
         return None
     
     # === Paths ===

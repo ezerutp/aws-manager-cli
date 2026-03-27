@@ -65,110 +65,222 @@ class MenuManager:
         print(f"║{title_line}║")
         print(f"╚{border}╝")
     
-    def display_main_menu(self) -> Dict:
-        """Display main menu and return user selection
+    def select_environment_parent(self) -> Optional[Dict]:
+        """Select parent environment (OPS, Hirelens, etc.)
         
         Returns:
-            dict with keys: 'action', 'environment', 'operation'
-            action can be: 'ssh', 'dump', 'recreate_db', 'connect_local_db', 'snippets_coming_soon', 'exit'
+            Parent environment dict or None if cancelled
         """
         environments = self.config.get_all_environments()
         
+        if not environments:
+            print("✗ No hay entornos configurados.")
+            self.wait_for_enter()
+            return None
+        
         self.display_menu_header("Python Edition")
-        print("\nSelecciona una opción:\n")
+        print("\n=== Seleccionar Entorno ===\n")
         
-        # Dynamic environment options
-        menu_options = []
-        option_num = 1
+        for i, env in enumerate(environments, 1):
+            print(f"{i}) {env.get('name', 'Sin nombre')}")
         
-        for env in environments:
-            env_name = env.get('name', '')
-            
-            # SSH option
-            menu_options.append({
-                'number': option_num,
-                'action': 'ssh',
-                'environment': env,
-                'label': f"{env_name} - SSH"
-            })
-            print(f"{option_num}) {env_name} - SSH")
-            option_num += 1
-            
-            # Dump option
-            menu_options.append({
-                'number': option_num,
-                'action': 'dump',
-                'environment': env,
-                'label': f"{env_name} - Descargar SQL Dump"
-            })
-            print(f"{option_num}) {env_name} - Descargar SQL Dump")
-            option_num += 1
+        print("\n--- Acciones Locales ---")
+        recreate_db_option = len(environments) + 1
+        print(f"{recreate_db_option}) Recrear Base de Datos (local)")
         
-        # Recreate DB option
-        recreate_option = option_num
-        print(f"\n{option_num}) Recrear Base de Datos (local)")
-        option_num += 1
-
-        # Connect local DB option
-        connect_local_db_option = option_num
-        print(f"{option_num}) Conectarse a BD local (consultas manuales)")
-        option_num += 1
-
-        # Snippets option (disabled for now)
-        snippets_option = option_num
-        print(f"{option_num}) Ejecutar snippets (Coming Soon - Deshabilitado)")
-        option_num += 1
+        connect_db_option = len(environments) + 2
+        print(f"{connect_db_option}) Conectarse a BD local (consultas manuales)")
         
-        # Exit option
-        print(f"{option_num}) Salir")
-        print("\n" + "="*40)
+        snippets_option = len(environments) + 3
+        print(f"{snippets_option}) Ejecutar snippets (Coming Soon - Deshabilitado)")
         
-        # Get user input
+        exit_option = len(environments) + 4
+        print(f"\n{exit_option}) Salir")
+        print("\n" + "="*48)
+        
         try:
-            choice = input(f"Opción [1-{option_num}]: ").strip()
+            choice = input(f"Opción [1-{exit_option}]: ").strip()
             
             if not choice.isdigit():
                 print("✗ Opción inválida.")
                 self.wait_for_enter()
-                return {'action': 'invalid'}
+                return None
             
             choice_num = int(choice)
             
-            # Check if it's exit
-            if choice_num == option_num:
-                return {'action': 'exit'}
+            # Check environment selection
+            if 1 <= choice_num <= len(environments):
+                return environments[choice_num - 1]
             
-            # Check if it's recreate DB
-            if choice_num == recreate_option:
-                return {'action': 'recreate_db'}
-
-            # Check if it's connect local DB
-            if choice_num == connect_local_db_option:
-                return {'action': 'connect_local_db'}
-
-            # Check if it's snippets (disabled)
+            # Check local actions
+            if choice_num == recreate_db_option:
+                return {'_special_action': 'recreate_db'}
+            
+            if choice_num == connect_db_option:
+                return {'_special_action': 'connect_local_db'}
+            
             if choice_num == snippets_option:
-                return {'action': 'snippets_coming_soon'}
+                return {'_special_action': 'snippets_coming_soon'}
             
-            # Check if it's a valid environment option
-            for opt in menu_options:
-                if opt['number'] == choice_num:
-                    return {
-                        'action': opt['action'],
-                        'environment': opt['environment']
-                    }
+            # Exit
+            if choice_num == exit_option:
+                return {'_special_action': 'exit'}
             
             print("✗ Opción inválida.")
             self.wait_for_enter()
-            return {'action': 'invalid'}
+            return None
             
         except KeyboardInterrupt:
             print("\n\n✗ Operación cancelada por el usuario.")
-            return {'action': 'exit'}
+            return {'_special_action': 'exit'}
         except Exception as e:
             print(f"\n✗ Error: {e}")
             self.wait_for_enter()
-            return {'action': 'invalid'}
+            return None
+    
+    def select_environment_type(self, parent_env: Dict) -> Optional[Dict]:
+        """Select environment type (PROD, QA, etc.) from parent environment
+        
+        Returns:
+            Environment type dict or None if cancelled
+        """
+        types = parent_env.get('types', [])
+        
+        if not types:
+            print("✗ No hay tipos de entorno configurados.")
+            self.wait_for_enter()
+            return None
+        
+        self.clear_screen()
+        self.display_menu_header(f"{parent_env.get('name', '')} - Tipo de Entorno")
+        print(f"\n=== Seleccionar Tipo para {parent_env.get('name', '')} ===\n")
+        
+        for i, env_type in enumerate(types, 1):
+            print(f"{i}) {env_type.get('name', 'Sin nombre')}")
+        
+        print("0) Volver atrás")
+        print("\n" + "="*48)
+        
+        try:
+            choice = input(f"Opción [0-{len(types)}]: ").strip()
+            
+            if not choice.isdigit():
+                print("✗ Opción inválida.")
+                self.wait_for_enter()
+                return None
+            
+            choice_num = int(choice)
+            
+            if choice_num == 0:
+                return None
+            
+            if 1 <= choice_num <= len(types):
+                return types[choice_num - 1]
+            
+            print("✗ Opción inválida.")
+            self.wait_for_enter()
+            return None
+            
+        except KeyboardInterrupt:
+            print("\n\n✗ Operación cancelada por el usuario.")
+            return None
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+            self.wait_for_enter()
+            return None
+    
+    def select_action(self, parent_env: Dict, env_type: Dict) -> Optional[Dict]:
+        """Select action for the chosen environment type
+        
+        Returns:
+            Action dict with 'action' and 'environment' keys, or None if cancelled
+        """
+        self.clear_screen()
+        parent_name = parent_env.get('name', '')
+        type_name = env_type.get('name', '')
+        self.display_menu_header(f"{parent_name} - {type_name}")
+        print(f"\n=== Acciones Disponibles para {parent_name} {type_name} ===\n")
+        
+        print("1) SSH - Conectarse al servidor")
+        print("2) Descargar SQL Dump")
+        print("\n0) Volver atrás")
+        print("\n" + "="*48)
+        
+        try:
+            choice = input("Opción [0-2]: ").strip()
+            
+            if not choice.isdigit():
+                print("✗ Opción inválida.")
+                self.wait_for_enter()
+                return None
+            
+            choice_num = int(choice)
+            
+            if choice_num == 0:
+                return None
+            
+            if choice_num == 1:
+                return {
+                    'action': 'ssh',
+                    'environment': env_type
+                }
+            
+            if choice_num == 2:
+                return {
+                    'action': 'dump',
+                    'environment': env_type
+                }
+            
+            print("✗ Opción inválida.")
+            self.wait_for_enter()
+            return None
+            
+        except KeyboardInterrupt:
+            print("\n\n✗ Operación cancelada por el usuario.")
+            return None
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+            self.wait_for_enter()
+            return None
+    
+    def display_main_menu(self) -> Dict:
+        """Display hierarchical menu and return user selection
+        
+        Returns:
+            dict with keys: 'action', 'environment'
+            action can be: 'ssh', 'dump', 'recreate_db', 'connect_local_db', 'snippets_coming_soon', 'exit', 'invalid'
+        """
+        while True:
+            self.clear_screen()
+            
+            # Level 1: Select parent environment
+            parent_env = self.select_environment_parent()
+            
+            if not parent_env:
+                return {'action': 'invalid'}
+            
+            # Check for special actions
+            if '_special_action' in parent_env:
+                return {'action': parent_env['_special_action']}
+            
+            # Level 2: Select environment type
+            while True:
+                env_type = self.select_environment_type(parent_env)
+                
+                if not env_type:
+                    # Go back to level 1
+                    break
+                
+                # Level 3: Select action
+                while True:
+                    result = self.select_action(parent_env, env_type)
+                    
+                    if not result:
+                        # Go back to level 2
+                        break
+                    
+                    # Return the selected action
+                    return result
 
     def display_local_menu(self) -> Dict:
         """Display local-only menu and return user selection.
