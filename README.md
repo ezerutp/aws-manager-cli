@@ -1,6 +1,6 @@
 # AWS Manager CLI
 
-**Versión 2.0.0 "Phoenix"** 🔥
+**Versión 2.1.0 "Phoenix"** 🔥
 
 Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreación de bases de datos en entornos AWS.
 
@@ -8,12 +8,15 @@ Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreaci
 
 - 🔐 **Autenticación MFA única** - Autentica una vez al inicio, las credenciales se reutilizan en toda la sesión
 - 🌍 **Entornos dinámicos** - Configura múltiples entornos sin límites y sin hardcodear
+- 🏗️ **Estructura jerárquica de entornos** - Organización en dos niveles: entornos padre (ProjectX, ProjectY) y tipos (PROD, QA, DEV) para mejor escalabilidad
 - 🔧 **Modular** - Código organizado en módulos independientes y reutilizables
 - 🐍 **Python** - Migrado de shell scripts y C++ a Python para mejor mantenibilidad
 - 📝 **Configuración JSON** - Fácil de editar y mantener
 - 📊 **Progreso de importación BD** - Muestra avance en tiempo real durante recreación local
 - 🗜️ **Soporte `.sql.gz`** - Permite importar dumps comprimidos directamente
 - 📁 **Gestión centralizada de dumps** - Carpeta configurable para almacenar todos los dumps SQL (por defecto `~/db_dump`)
+- ⚙️ **Argumentos CLI** - Soporta argumentos de línea de comandos para diferentes modos de operación
+- 🔍 **Inspección de entornos** - Visualiza todos los entornos configurados y sus tipos con el argumento `--environments`
 
 ## Estructura del proyecto
 
@@ -341,6 +344,7 @@ python3 main.py
 
 - `--local` / `-l`: Ejecuta en modo local (sin MFA), mostrando solo operaciones locales.
 - `--config` / `-c`: Muestra qué archivos de configuración está usando la aplicación y pregunta si deseas abrir la carpeta contenedora.
+- `--environments` / `-e`: Muestra todos los entornos disponibles y sus tipos (PROD, QA, etc.) con sus instance IDs y security groups.
 
 ### Flujo de Uso
 
