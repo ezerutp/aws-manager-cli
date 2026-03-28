@@ -69,6 +69,10 @@ def main():
     if cli_options.local_mode:
         print("Modo local activado: se omite MFA y se muestran solo opciones locales.")
     
+    if cli_options.env_id:
+        print(f"Modo acceso directo a entorno: {cli_options.env_id}")
+        print("Nota: Requiere autenticación MFA para operaciones remotas.")
+    
     # Check prerequisites
     if not check_prerequisites():
         print("\n✗ Faltan herramientas requeridas. Por favor instálalas antes de continuar.")
@@ -99,9 +103,22 @@ def main():
     db_ops = DatabaseOperations(config)
     menu_manager = MenuManager(config, db_ops)
     
+    # Validate env_id if provided
+    target_environment = None
+    if cli_options.env_id:
+        target_environment = config.find_environment_by_type_id(cli_options.env_id)
+        if not target_environment:
+            print(f"\n✗ Error: No se encontró un entorno con ID '{cli_options.env_id}'")
+            print("\nUsa --environments para ver todos los IDs disponibles")
+            return 1
+        
+        parent_name = target_environment.get('_parent_name', '')
+        env_name = target_environment.get('name', '')
+        print(f"✓ Entorno encontrado: {parent_name} {env_name}")
+    
     if not cli_options.local_mode:
-        # Perform MFA authentication once at the start (normal mode)
-        print("=== Autenticación Inicial ===")
+        # Perform MFA authentication once at the start (normal mode or env_id mode)
+        print("\n=== Autenticación Inicial ===")
         if not mfa_auth.perform_authentication():
             print("\n✗ Error en autenticación. No se puede continuar.")
             return 1
@@ -121,6 +138,8 @@ def main():
             # Display menu according to mode and get choice
             if cli_options.local_mode:
                 choice = menu_manager.display_local_menu()
+            elif cli_options.env_id:
+                choice = menu_manager.display_env_menu(cli_options.env_id, target_environment)
             else:
                 choice = menu_manager.display_main_menu()
             action = choice.get('action')

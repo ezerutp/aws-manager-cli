@@ -66,7 +66,7 @@ class MenuManager:
         print(f"╚{border}╝")
     
     def select_environment_parent(self) -> Optional[Dict]:
-        """Select parent environment (OPS, Hirelens, etc.)
+        """Select parent environment (projectx , projecty, etc.)
         
         Returns:
             Parent environment dict or None if cancelled
@@ -321,6 +321,72 @@ class MenuManager:
             self.wait_for_enter()
             return {'action': 'invalid'}
 
+        except KeyboardInterrupt:
+            print("\n\n✗ Operación cancelada por el usuario.")
+            return {'action': 'exit'}
+        except Exception as e:
+            print(f"\n✗ Error: {e}")
+            self.wait_for_enter()
+            return {'action': 'invalid'}
+    
+    def display_env_menu(self, env_id: str, environment: Dict) -> Dict:
+        """Display environment-specific menu with SSH, dump and local operations.
+        
+        Args:
+            env_id: Environment ID (e.g., 'projectx_prod')
+            environment: Environment configuration dict
+        
+        Returns:
+            dict with keys: 'action', 'environment'
+            action can be: 'ssh', 'dump', 'recreate_db', 'connect_local_db', 
+                          'snippets_coming_soon', 'exit', 'invalid'
+        """
+        parent_name = environment.get('_parent_name', '')
+        env_name = environment.get('name', '')
+        display_name = f"{parent_name} {env_name}" if parent_name else env_name
+        
+        self.display_menu_header(f"Entorno: {env_id}")
+        print(f"\n=== Acciones para {display_name} ===\n")
+        
+        print("--- Acciones Remotas ---")
+        print("1) SSH - Conectarse al servidor")
+        print("2) Descargar SQL Dump")
+        
+        print("\n--- Acciones Locales ---")
+        print("3) Recrear Base de Datos (local)")
+        print("4) Conectarse a BD local (consultas manuales)")
+        print("5) Ejecutar snippets (Coming Soon - Deshabilitado)")
+        
+        print("\n6) Salir")
+        print("\n" + "=" * 48)
+        
+        try:
+            choice = input("Opción [1-6]: ").strip()
+            
+            if not choice.isdigit():
+                print("✗ Opción inválida.")
+                self.wait_for_enter()
+                return {'action': 'invalid'}
+            
+            choice_num = int(choice)
+            
+            if choice_num == 1:
+                return {'action': 'ssh', 'environment': environment}
+            if choice_num == 2:
+                return {'action': 'dump', 'environment': environment}
+            if choice_num == 3:
+                return {'action': 'recreate_db'}
+            if choice_num == 4:
+                return {'action': 'connect_local_db'}
+            if choice_num == 5:
+                return {'action': 'snippets_coming_soon'}
+            if choice_num == 6:
+                return {'action': 'exit'}
+            
+            print("✗ Opción inválida.")
+            self.wait_for_enter()
+            return {'action': 'invalid'}
+        
         except KeyboardInterrupt:
             print("\n\n✗ Operación cancelada por el usuario.")
             return {'action': 'exit'}

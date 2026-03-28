@@ -66,10 +66,15 @@ class SSHOperations:
             print("  3. Verifica que la clave privada coincide con la pública en EC2")
             return False
         
-        # Update Security Group
-        if not self.sg.update_security_group(environment):
-            print("✗ Error al actualizar Security Group.")
-            return False
+        # Update Security Group (skip if not configured)
+        sg_id = environment.get('security_group_id')
+        if sg_id:
+            if not self.sg.update_security_group(environment):
+                print("✗ Error al actualizar Security Group.")
+                return False
+        else:
+            print("\n⚠ Security Group ID no proporcionado - omitiendo actualización de reglas.")
+            print("  Asegúrate de que tu IP está autorizada en el Security Group de la instancia.")
         
         # Get DNS
         instance_id = environment.get('instance_id', '')

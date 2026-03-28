@@ -1,7 +1,7 @@
 """Command-line argument parsing utilities."""
 import argparse
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 
 @dataclass
@@ -10,6 +10,7 @@ class CliOptions:
     local_mode: bool = False
     show_config: bool = False
     show_environments: bool = False
+    env_id: Optional[str] = None
 
 
 def parse_cli_args(argv: List[str]) -> CliOptions:
@@ -40,5 +41,19 @@ def parse_cli_args(argv: List[str]) -> CliOptions:
         help='Muestra todos los entornos disponibles y sus tipos.'
     )
 
+    parser.add_argument(
+        '--env',
+        '-id',
+        dest='env_id',
+        type=str,
+        metavar='ID',
+        help='Acceso directo al entorno por ID (ej: projectx_prod).'
+    )
+
     args = parser.parse_args(argv)
-    return CliOptions(local_mode=args.local_mode, show_config=args.show_config, show_environments=args.show_environments)
+    return CliOptions(
+        local_mode=args.local_mode,
+        show_config=args.show_config,
+        show_environments=args.show_environments,
+        env_id=args.env_id
+    )

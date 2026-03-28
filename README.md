@@ -345,6 +345,22 @@ python3 main.py
 - `--local` / `-l`: Ejecuta en modo local (sin MFA), mostrando solo operaciones locales.
 - `--config` / `-c`: Muestra qué archivos de configuración está usando la aplicación y pregunta si deseas abrir la carpeta contenedora.
 - `--environments` / `-e`: Muestra todos los entornos disponibles y sus tipos (PROD, QA, etc.) con sus instance IDs y security groups.
+- `--env <ID>` / `-id <ID>`: Acceso directo a un entorno específico usando su ID (ej: `projectx_prod`, `projectx_qa`). Requiere autenticación MFA y muestra un menú simplificado con opciones SSH, descarga de dump y operaciones locales.
+
+#### Ejemplo de uso con --env:
+
+```bash
+# Ver todos los entornos disponibles y sus IDs
+python3 main.py --environments
+
+# Acceso directo a un entorno específico usando su ID
+python3 main.py --env projectx_prod
+
+# O usando la forma corta
+python3 main.py -id projectx_prod
+```
+
+Los IDs de entorno son más legibles y fáciles de recordar que los instance IDs de EC2. Puedes usar `--environments` para ver todos los IDs disponibles en tu configuración.
 
 ### Flujo de Uso
 

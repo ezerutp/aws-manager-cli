@@ -209,6 +209,28 @@ class ConfigManager:
                 return env_type
         return None
     
+    def find_environment_by_type_id(self, type_id: str) -> Optional[Dict]:
+        """Find environment type across all parent environments by its ID.
+        
+        Searches through all parent environments and their types to find
+        a match for type_id (e.g., 'projectx_prod', 'projectx_qa').
+        
+        Args:
+            type_id: The ID of the environment type to find
+            
+        Returns:
+            Environment type dict if found, None otherwise
+        """
+        for parent_env in self.environments_data:
+            types = parent_env.get('types', [])
+            for env_type in types:
+                if env_type.get('id') == type_id:
+                    # Add parent name for context
+                    env_type_copy = env_type.copy()
+                    env_type_copy['_parent_name'] = parent_env.get('name', '')
+                    return env_type_copy
+        return None
+    
     # === Paths ===
     
     def get_dump_directory(self) -> Path:
