@@ -9,6 +9,7 @@ class CliOptions:
     """Holds parsed CLI options."""
     local_mode: bool = False
     show_config: bool = False
+    show_environments: bool = False
 
 
 def parse_cli_args(argv: List[str]) -> CliOptions:
@@ -31,5 +32,13 @@ def parse_cli_args(argv: List[str]) -> CliOptions:
         help='Muestra qué archivos de configuración se están usando y permite abrir su carpeta.'
     )
 
+    parser.add_argument(
+        '--environments',
+        '-e',
+        dest='show_environments',
+        action='store_true',
+        help='Muestra todos los entornos disponibles y sus tipos.'
+    )
+
     args = parser.parse_args(argv)
-    return CliOptions(local_mode=args.local_mode, show_config=args.show_config)
+    return CliOptions(local_mode=args.local_mode, show_config=args.show_config, show_environments=args.show_environments)

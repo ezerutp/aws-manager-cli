@@ -61,3 +61,38 @@ def show_config_usage(config: ConfigManager) -> int:
     print(f"\nAbriendo: {target_folder}")
     open_folder(target_folder)
     return 0
+
+
+def show_environments(config: ConfigManager) -> int:
+    """Show all available environments and their types."""
+    print("\n=== Entornos disponibles ===\n")
+    
+    environments = config.get_all_environments()
+    
+    if not environments:
+        print("✗ No se encontraron entornos configurados.")
+        return 1
+    
+    for idx, env in enumerate(environments, start=1):
+        env_id = env.get('id', 'N/A')
+        description = env.get('description', 'Sin descripción')
+        types = env.get('types', [])
+        
+        print(f"{idx}. {description} (ID: {env_id})")
+        
+        if types:
+            print("   Tipos disponibles:")
+            for type_config in types:
+                type_name = type_config.get('name', 'N/A')
+                instance_id = type_config.get('instance_id', 'N/A')
+                security_group = type_config.get('security_group', 'N/A')
+                print(f"      • {type_name}")
+                print(f"        - Instance ID: {instance_id}")
+                print(f"        - Security Group: {security_group}")
+        else:
+            print("   ⚠ No hay tipos configurados")
+        
+        print()
+    
+    print(f"Total: {len(environments)} entorno(s) configurado(s)")
+    return 0

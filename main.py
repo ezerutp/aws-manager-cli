@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
 from src import __version__
-from src.config import ConfigManager, show_config_usage
+from src.config import ConfigManager, show_config_usage, show_environments
 from src.auth import MFAAuthenticator
 from src.aws import EC2Manager, SecurityGroupManager
 from src.operations import SSHOperations, DumpOperations, DatabaseOperations
@@ -58,6 +58,13 @@ def main():
     if cli_options.show_config:
         config = ConfigManager()
         return show_config_usage(config)
+
+    if cli_options.show_environments:
+        config = ConfigManager()
+        if not config.load_environments():
+            print("✗ Error al cargar los entornos.")
+            return 1
+        return show_environments(config)
 
     if cli_options.local_mode:
         print("Modo local activado: se omite MFA y se muestran solo opciones locales.")
