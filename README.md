@@ -17,7 +17,47 @@ Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreaci
 - 📁 **Gestión centralizada de dumps** - Carpeta configurable para almacenar todos los dumps SQL (por defecto `~/db_dump`)
 - ⚙️ **Argumentos CLI** - Soporta argumentos de línea de comandos para diferentes modos de operación
 - 🔍 **Inspección de entornos** - Visualiza todos los entornos configurados y sus tipos con el argumento `--environments`
+- 📊 **Sistema de Logging** - Registro automático de todas las operaciones de descarga y recreación con métricas detalladas
 
+## 📊 Sistema de Registro de Operaciones
+
+AWS Manager registra automáticamente todas las operaciones de descarga de dumps y recreación de bases de datos en `~/.config/aws-manager/logs/`.
+
+### Características del sistema de logs
+
+- ✅ **Registro automático** - No requiere configuración adicional
+- 📅 **Información completa** - Fecha, hora, día de la semana, entorno de origen
+- ⏱️ **Métricas de rendimiento** - Tiempo de ejecución para recreaciones
+- 📏 **Tamaño de archivos** - Registro del tamaño de dumps descargados
+- 🔍 **Formato JSON** - Fácil de analizar y procesar
+
+### Archivos de log
+
+- **`dump_operations.log`**: Registro de descargas de dumps
+- **`recreate_operations.log`**: Registro de recreaciones de BD
+
+### Ejemplo de salida del visualizador de logs
+
+```
+operacion DESCARGA_DUMP 2024-03-30T14:30:45.123456
+Dump:     dev_dump_2024-03-30.sql.gz
+Entorno:  Desarrollo AWS
+Fecha:    Dom Mar 30 14:30:45 2024 -0500
+Tamaño:   125.5 MB
+
+    Descarga de dump desde Desarrollo AWS
+
+operacion RECREAR_BASE_DATOS 2024-03-30T14:35:20.789012
+Dump:     dev_dump_2024-03-30.sql.gz
+Database: mi_base_datos
+Fecha:    Dom Mar 30 14:35:20 2024 -0500
+Duración: 45s
+Tamaño:   125.5 MB
+
+    Recreación de base de datos 'mi_base_datos' desde dump 'dev_dump_2024-03-30.sql.gz'
+
+Mostrando 2 operaciones
+```
 ## Estructura del proyecto
 
 ```

@@ -91,10 +91,13 @@ class MenuManager:
         connect_db_option = len(environments) + 2
         print(f"{connect_db_option}) Conectarse a BD local (consultas manuales)")
         
-        snippets_option = len(environments) + 3
+        view_logs_option = len(environments) + 3
+        print(f"{view_logs_option}) Ver logs de operaciones")
+        
+        snippets_option = len(environments) + 4
         print(f"{snippets_option}) Ejecutar snippets (Coming Soon - Deshabilitado)")
         
-        exit_option = len(environments) + 4
+        exit_option = len(environments) + 5
         print(f"\n{exit_option}) Salir")
         print("\n" + "="*48)
         
@@ -118,6 +121,9 @@ class MenuManager:
             
             if choice_num == connect_db_option:
                 return {'_special_action': 'connect_local_db'}
+            
+            if choice_num == view_logs_option:
+                return {'_special_action': 'view_logs'}
             
             if choice_num == snippets_option:
                 return {'_special_action': 'snippets_coming_soon'}
@@ -287,19 +293,20 @@ class MenuManager:
 
         Returns:
             dict with keys: 'action'
-            action can be: 'recreate_db', 'connect_local_db', 'snippets_coming_soon', 'exit'
+            action can be: 'recreate_db', 'connect_local_db', 'view_logs', 'snippets_coming_soon', 'exit'
         """
         self.display_menu_header("Modo Local")
         print("\nSelecciona una opción:\n")
 
         print("1) Recrear Base de Datos (local)")
         print("2) Conectarse a BD local (consultas manuales)")
-        print("3) Ejecutar snippets (Coming Soon - Deshabilitado)")
-        print("4) Salir")
+        print("3) Ver logs de operaciones")
+        print("4) Ejecutar snippets (Coming Soon - Deshabilitado)")
+        print("5) Salir")
         print("\n" + "=" * 40)
 
         try:
-            choice = input("Opción [1-4]: ").strip()
+            choice = input("Opción [1-5]: ").strip()
 
             if not choice.isdigit():
                 print("✗ Opción inválida.")
@@ -313,8 +320,10 @@ class MenuManager:
             if choice_num == 2:
                 return {'action': 'connect_local_db'}
             if choice_num == 3:
-                return {'action': 'snippets_coming_soon'}
+                return {'action': 'view_logs'}
             if choice_num == 4:
+                return {'action': 'snippets_coming_soon'}
+            if choice_num == 5:
                 return {'action': 'exit'}
 
             print("✗ Opción inválida.")
@@ -355,13 +364,14 @@ class MenuManager:
         print("\n--- Acciones Locales ---")
         print("3) Recrear Base de Datos (local)")
         print("4) Conectarse a BD local (consultas manuales)")
-        print("5) Ejecutar snippets (Coming Soon - Deshabilitado)")
+        print("5) Ver logs de operaciones")
+        print("6) Ejecutar snippets (Coming Soon - Deshabilitado)")
         
-        print("\n6) Salir")
+        print("\n7) Salir")
         print("\n" + "=" * 48)
         
         try:
-            choice = input("Opción [1-6]: ").strip()
+            choice = input("Opción [1-7]: ").strip()
             
             if not choice.isdigit():
                 print("✗ Opción inválida.")
@@ -379,8 +389,10 @@ class MenuManager:
             if choice_num == 4:
                 return {'action': 'connect_local_db'}
             if choice_num == 5:
-                return {'action': 'snippets_coming_soon'}
+                return {'action': 'view_logs'}
             if choice_num == 6:
+                return {'action': 'snippets_coming_soon'}
+            if choice_num == 7:
                 return {'action': 'exit'}
             
             print("✗ Opción inválida.")

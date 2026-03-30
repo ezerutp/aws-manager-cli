@@ -4,6 +4,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional
 import re
+from ..utils import OperationsLogger
 
 
 class DumpOperations:
@@ -12,6 +13,7 @@ class DumpOperations:
     def __init__(self, config_manager, ec2_manager):
         self.config = config_manager
         self.ec2 = ec2_manager
+        self.logger = OperationsLogger()
     
     def check_remote_file_exists(self, key_path: str, ssh_user: str, 
                                   dns: str, filename: str) -> bool:
@@ -97,6 +99,7 @@ class DumpOperations:
     def download_dump(self, environment: dict) -> bool:
         """Download SQL dump from environment"""
         env_name = environment.get('name', '')
+        env_id = environment.get('id', '')
         print(f"\n=== Descargando SQL Dump de {env_name} ===")
         
         key_path = self.config.get_key_path()
@@ -111,10 +114,9 @@ class DumpOperations:
             return False
         
         # Generate suggested filename
-        # Extract first word from environment name and convert to lowercase
-        env_simple = env_name.split()[0].lower()
+        # Use environment ID for more specific naming
         date_str = datetime.now().strftime('%Y-%m-%d')
-        suggested_filename = f"dump_{env_simple}_{date_str}.sql.gz"
+        suggested_filename = f"dump_{date_str}.sql.gz"
         
         # Ask user for filename
         print(f"\nNombre del archivo en servidor [{suggested_filename}]: ", end='')
@@ -123,7 +125,7 @@ class DumpOperations:
 
         dump_dir = self.config.get_dump_directory()
 
-        env_prefix = self.normalize_environment_name(env_name)
+        env_prefix = self.normalize_environment_name(env_id)
         local_filename = f"{env_prefix}_{dump_filename}"
         local_file_path = dump_dir / local_filename
         
@@ -151,5 +153,12 @@ class DumpOperations:
         size_mb = self.get_file_size_mb(str(local_file_path))
         if size_mb:
             print(f"Tamaño del archivo: {size_mb} MB")
+        
+        # Log the operation
+        self.logger.log_dump_download(
+            dump_name=local_filename,
+            environment=env_id,
+            file_size_mb=size_mb
+        )
         
         return True

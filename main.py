@@ -66,6 +66,11 @@ def main():
             return 1
         return show_environments(config)
 
+    if cli_options.show_logs:
+        from src.utils.logger import OperationsLogger
+        OperationsLogger.display_logs()
+        return 0
+
     if cli_options.local_mode:
         print("Modo local activado: se omite MFA y se muestran solo opciones locales.")
     
@@ -143,6 +148,14 @@ def main():
             else:
                 choice = menu_manager.display_main_menu()
             action = choice.get('action')
+            
+            if action == 'view_logs':
+                from src.utils.logger import OperationsLogger
+                menu_manager.clear_screen()
+                OperationsLogger.display_logs()
+                menu_manager.wait_for_enter()
+                menu_manager.clear_screen()
+                continue
             
             if action == 'exit':
                 menu_manager.clear_screen()

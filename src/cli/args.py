@@ -10,6 +10,7 @@ class CliOptions:
     local_mode: bool = False
     show_config: bool = False
     show_environments: bool = False
+    show_logs: bool = False
     env_id: Optional[str] = None
 
 
@@ -50,10 +51,18 @@ def parse_cli_args(argv: List[str]) -> CliOptions:
         help='Acceso directo al entorno por ID (ej: projectx_prod).'
     )
 
+    parser.add_argument(
+        '--logs',
+        dest='show_logs',
+        action='store_true',
+        help='Muestra el historial de operaciones de dump y recreate ordenados de más reciente a más antiguo.'
+    )
+
     args = parser.parse_args(argv)
     return CliOptions(
         local_mode=args.local_mode,
         show_config=args.show_config,
         show_environments=args.show_environments,
+        show_logs=args.show_logs,
         env_id=args.env_id
     )

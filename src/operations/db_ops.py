@@ -4,6 +4,7 @@ import subprocess
 import time
 from pathlib import Path
 from typing import List
+from ..utils import OperationsLogger
 
 
 class DatabaseOperations:
@@ -11,6 +12,7 @@ class DatabaseOperations:
 
     def __init__(self, config_manager):
         self.config = config_manager
+        self.logger = OperationsLogger()
 
     def get_sql_files_in_directory(self, directory: str = ".") -> List[Path]:
         """Get all SQL and SQL.GZ files from directory, prioritizing db_dump."""
@@ -213,9 +215,53 @@ class DatabaseOperations:
             print(f"✗ Error al importar archivo SQL: {e}")
             return False
 
+    def _extract_environment_from_filename(self, filename: str) -> str:
+        """Extract environment name from dump filename"""
+        try:
+            # Get just the filename without path
+            name = Path(filename).name
+            
+            # Common patterns:
+            # example_one_prod_dump_2024-01-01.sql.gz
+            # aws_dev_dump_2024-01-01.sql.gz
+            # entorno_dump_production_2024-01-01.sql.gz
+            
+            # Try to extract the environment prefix before '_dump_'
+            if '_dump_' in name.lower():
+                # Split by '_dump_' and take everything before it
+                prefix = name.lower().split('_dump_')[0]
+                return prefix
+            
+            # Fallback: check for 'dump' without full pattern
+            if 'dump' in name.lower():
+                parts = name.split('_')
+                if len(parts) > 0:
+                    # Return the first part as environment
+                    return parts[0]
+            
+            # If no pattern matches, return 'desconocido'
+            return 'desconocido'
+        except Exception:
+            return 'desconocido'
+    
+    def _get_file_size_mb(self, filepath: str) -> float:
+        """Get file size in MB"""
+        try:
+            path = Path(filepath)
+            if path.exists():
+                size_bytes = path.stat().st_size
+                size_mb = size_bytes / (1024 * 1024)
+                return round(size_mb, 2)
+        except Exception:
+            pass
+        return 0.0
+
     def recreate_database(self, db_name: str, sql_file: str) -> bool:
         """Recreate database with SQL file"""
         print("\n=== Recreando Base de Datos ===")
+        
+        # Start timing
+        start_time = time.time()
 
         if not Path(sql_file).exists():
             print(f"✗ Error: Archivo no existe: {sql_file}")
@@ -241,4 +287,23 @@ class DatabaseOperations:
             return False
 
         print(f"✓ Base de datos '{db_name}' recreada exitosamente.")
+        
+        # Calculate total time
+        end_time = time.time()
+        duration = end_time - start_time
+        
+        # Extract environment and file info
+        dump_filename = Path(sql_file).name
+        environment = self._extract_environment_from_filename(dump_filename)
+        file_size_mb = self._get_file_size_mb(sql_file)
+        
+        # Log the operation
+        self.logger.log_database_recreate(
+            dump_name=dump_filename,
+            database_name=db_name,
+            environment=environment,
+            duration_seconds=duration,
+            file_size_mb=file_size_mb
+        )
+        
         return True
