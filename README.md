@@ -18,6 +18,7 @@ Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreaci
 - ⚙️ **Argumentos CLI** - Soporta argumentos de línea de comandos para diferentes modos de operación
 - 🔍 **Inspección de entornos** - Visualiza todos los entornos configurados y sus tipos con el argumento `--environments`
 - 📊 **Sistema de Logging** - Registro automático de todas las operaciones de descarga y recreación con métricas detalladas
+- 📋 **Listado de dumps remotos** - Visualiza y selecciona dumps disponibles directamente desde el servidor sin escribir manualmente el nombre del archivo
 
 ## 📊 Sistema de Registro de Operaciones
 
