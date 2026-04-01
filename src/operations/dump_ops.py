@@ -149,13 +149,13 @@ class DumpOperations:
                  '-o', 'UserKnownHostsFile=/dev/null',
                  f'{ssh_user}@{dns}:~/{remote_file}',
                  local_file],
-                timeout=300  # 5 minutes timeout for large files
+                timeout=1800  # 30 minutes timeout for large files
             )
             
             return result.returncode == 0
             
         except subprocess.TimeoutExpired:
-            print("✗ Timeout al descargar archivo (>5 minutos).")
+            print("✗ Timeout al descargar archivo (>30 minutos).")
             return False
         except Exception as e:
             print(f"✗ Error al descargar archivo: {e}")
