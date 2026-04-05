@@ -52,6 +52,10 @@ def main():
     """Main application entry point"""
     cli_options = parse_cli_args(sys.argv[1:])
 
+    if cli_options.show_version:
+        print(__version__)
+        return 0
+
     # Display header
     MenuManager.display_app_header()
 

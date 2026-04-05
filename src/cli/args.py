@@ -11,6 +11,7 @@ class CliOptions:
     show_config: bool = False
     show_environments: bool = False
     show_logs: bool = False
+    show_version: bool = False
     env_id: Optional[str] = None
 
 
@@ -58,11 +59,20 @@ def parse_cli_args(argv: List[str]) -> CliOptions:
         help='Muestra el historial de operaciones de dump y recreate ordenados de más reciente a más antiguo.'
     )
 
+    parser.add_argument(
+        '--version',
+        '-v',
+        dest='show_version',
+        action='store_true',
+        help='Muestra la versión del binario y termina.'
+    )
+
     args = parser.parse_args(argv)
     return CliOptions(
         local_mode=args.local_mode,
         show_config=args.show_config,
         show_environments=args.show_environments,
         show_logs=args.show_logs,
+        show_version=args.show_version,
         env_id=args.env_id
     )
