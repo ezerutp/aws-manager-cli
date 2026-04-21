@@ -83,10 +83,11 @@ def show_environments(config: ConfigManager) -> int:
         if types:
             print("   Tipos disponibles:")
             for type_config in types:
+                type_id = type_config.get('id', 'N/A')
                 type_name = type_config.get('name', 'N/A')
                 instance_id = type_config.get('instance_id', 'N/A')
                 security_group = type_config.get('security_group', 'N/A')
-                print(f"      • {type_name}")
+                print(f"      • {type_name} (ID: {type_id})")
                 print(f"        - Instance ID: {instance_id}")
                 print(f"        - Security Group: {security_group}")
         else:
