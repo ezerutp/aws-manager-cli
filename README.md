@@ -24,14 +24,6 @@ Herramienta CLI para gestionar conexiones SSH, descargas de dumps SQL y recreaci
 
 AWS Manager registra automáticamente todas las operaciones de descarga de dumps y recreación de bases de datos en `~/.config/aws-manager/logs/`.
 
-### Características del sistema de logs
-
-- ✅ **Registro automático** - No requiere configuración adicional
-- 📅 **Información completa** - Fecha, hora, día de la semana, entorno de origen
-- ⏱️ **Métricas de rendimiento** - Tiempo de ejecución para recreaciones
-- 📏 **Tamaño de archivos** - Registro del tamaño de dumps descargados
-- 🔍 **Formato JSON** - Fácil de analizar y procesar
-
 ### Archivos de log
 
 - **`dump_operations.log`**: Registro de descargas de dumps
@@ -164,7 +156,7 @@ Instala el binario compilado en el sistema para uso global.
 **Qué hace:**
 
 - ✓ Copia `dist/aws-manager` a `/usr/local/bin/` (requiere sudo)
-- ✓ Permite crear un alias/symlink personalizado (ej: `awsm`, `ops-manager`)
+- ✓ Permite crear un alias/symlink personalizado (ej: `awsm`, `my-manager`)
 - ✓ Valida nombres de alias para evitar conflictos con comandos del sistema
 - ✓ Crea directorio `~/.config/aws-manager/` para configuración
 - ✓ Copia archivos de configuración al directorio del usuario
@@ -381,27 +373,373 @@ export AWS_DEFAULT_REGION='us-east-1'
 python3 main.py
 ```
 
-### Opciones CLI
-
-- `--local` / `-l`: Ejecuta en modo local (sin MFA), mostrando solo operaciones locales.
-- `--config` / `-c`: Muestra qué archivos de configuración está usando la aplicación y pregunta si deseas abrir la carpeta contenedora.
-- `--environments` / `-e`: Muestra todos los entornos disponibles y sus tipos (PROD, QA, etc.) con sus instance IDs y security groups.
-- `--env <ID>` / `-id <ID>`: Acceso directo a un entorno específico usando su ID (ej: `projectx_prod`, `projectx_qa`). Requiere autenticación MFA y muestra un menú simplificado con opciones SSH, descarga de dump y operaciones locales.
-
-#### Ejemplo de uso con --env:
+O si instalaste el binario:
 
 ```bash
-# Ver todos los entornos disponibles y sus IDs
-python3 main.py --environments
-
-# Acceso directo a un entorno específico usando su ID
-python3 main.py --env projectx_prod
-
-# O usando la forma corta
-python3 main.py -id projectx_prod
+aws-manager
 ```
 
-Los IDs de entorno son más legibles y fáciles de recordar que los instance IDs de EC2. Puedes usar `--environments` para ver todos los IDs disponibles en tu configuración.
+## 📖 Guía Completa de Comandos CLI
+
+AWS Manager soporta varios argumentos de línea de comandos para diferentes modos de operación y consultas rápidas.
+
+### 🎮 Sintaxis General
+
+```bash
+python3 main.py [OPCIONES]
+```
+
+### 📋 Comandos Disponibles
+
+#### `--version` / `-v`
+**Muestra la versión del programa**
+
+```bash
+python3 main.py --version
+```
+
+**Salida:**
+```
+AWS Manager CLI v2.1.0 "Phoenix"
+```
+
+**Cuándo usar:** Para verificar qué versión del programa estás ejecutando, útil para reportar bugs o confirmar actualizaciones.
+
+---
+
+#### `--config` / `-c`
+**Muestra los archivos de configuración en uso y permite abrir su carpeta**
+
+```bash
+python3 main.py --config
+```
+
+**Salida:**
+```
+=== Archivos de configuración en uso ===
+
+Configuración principal (config.json)
+✓ En uso: /home/ezer/.config/aws-manager/config.json
+
+Configuración de entornos (config-environment.json)
+✓ En uso: /home/ezer/.config/aws-manager/config-environment.json
+
+¿Deseas abrir la carpeta contenedora? [s/N]:
+```
+
+**Cuándo usar:** 
+- Para verificar qué archivo de configuración se está usando (local vs global)
+- Para editar rápidamente la configuración
+- Para solucionar problemas de configuración
+
+**Nota:** Si tienes múltiples archivos de configuración en diferentes ubicaciones, el programa muestra cuál tiene prioridad.
+
+---
+
+#### `--environments` / `-e`
+**Lista todos los entornos configurados con sus detalles**
+
+```bash
+python3 main.py --environments
+```
+
+**Salida:**
+```
+=== Entornos disponibles ===
+
+1. Example One (ID: example_one)
+   Tipos disponibles:
+      • PROD (ID: example_one_prod)
+        - Instance ID: i-0a1b2c3d4e5f6g7h8
+        - Security Group: sg-0a1b2c3d4e5f6g7h8
+      • QA (ID: example_one_qa)
+        - Instance ID: i-1a2b3c4d5e6f7g8h9
+        - Security Group: sg-1a2b3c4d5e6f7g8h9
+
+2. Example Two (ID: example_two)
+   Tipos disponibles:
+      • PROD (ID: example_two_prod)
+        - Instance ID: i-2a3b4c5d6e7f8g9h0
+        - Security Group: sg-2a3b4c5d6e7f8g9h0
+      • QA (ID: example_two_qa)
+        - Instance ID: i-3a4b5c6d7e8f9g0h1
+        - Security Group: sg-3a4b5c6d7e8f9g0h1
+
+Total: 2 entorno(s) configurado(s)
+```
+
+**Cuándo usar:**
+- Para conocer los IDs de entorno que puedes usar con `--env`
+- Para verificar la configuración de instancias EC2 y security groups
+- Para documentar o auditar tus entornos
+
+**Tip:** Copia el ID del tipo (ej: `example_one_prod`) para usarlo con el comando `--env` y acceder directamente.
+
+---
+
+#### `--env <ID>` / `-id <ID>`
+**Acceso directo a un entorno específico (requiere MFA)**
+
+```bash
+python3 main.py --env example_one_prod
+# O forma corta:
+python3 main.py -id example_one_prod
+```
+
+**Qué hace:**
+1. Autentica con MFA
+2. Valida que el ID exista
+3. Muestra un menú simplificado solo para ese entorno
+
+**Menú del entorno:**
+```
+╔══════════════════════════════════════════════════════════════╗
+║                 Example One - PROD                           ║
+╚══════════════════════════════════════════════════════════════╝
+
+  1) Conectar SSH
+  2) Descargar SQL Dump
+  3) Ver historial de operaciones
+  ────────────────────────────────────────────────────────────
+  Operaciones Locales
+  ────────────────────────────────────────────────────────────
+  4) Recrear Base de Datos (local)
+  5) Conectarse a BD local (MySQL interactivo)
+  ────────────────────────────────────────────────────────────
+  0) Salir
+
+Selecciona una opción:
+```
+
+**Cuándo usar:**
+- Cuando trabajas frecuentemente con el mismo entorno
+- Para crear scripts o aliases (ej: `alias ex1-prod='python3 main.py -id example_one_prod'`)
+- Para acceso rápido sin navegar por todos los menús
+
+**Ejemplo de alias útil:**
+```bash
+# Agregar a ~/.bashrc o ~/.zshrc
+alias aws-ex1-prod='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_prod'
+alias aws-ex1-qa='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_qa'
+```
+
+---
+
+#### `--local` / `-l`
+**Modo local: omite MFA y muestra solo operaciones locales**
+
+```bash
+python3 main.py --local
+```
+
+**Qué hace:**
+- ✅ No requiere autenticación MFA
+- ✅ Omite verificación de credenciales AWS
+- ✅ Muestra solo operaciones que se ejecutan localmente
+- ❌ No permite SSH
+- ❌ No permite descargar dumps
+
+**Menú en modo local:**
+```
+╔══════════════════════════════════════════════════════════════╗
+║          AWS Manager CLI - Modo Local (sin MFA)              ║
+╚══════════════════════════════════════════════════════════════╝
+
+  1) Recrear Base de Datos (local)
+  2) Conectarse a BD local (MySQL interactivo)
+  3) Ver historial de operaciones
+  ────────────────────────────────────────────────────────────
+  0) Salir
+
+Selecciona una opción:
+```
+
+**Cuándo usar:**
+- Cuando solo necesitas trabajar con dumps descargados previamente
+- Para recrear bases de datos sin conectarte a AWS
+- Para consultar bases de datos locales
+- Cuando no tienes acceso a internet o credenciales AWS
+- Para desarrollo y testing sin gastar credenciales temporales
+
+**Caso de uso común:**
+```bash
+# 1. Primero descarga un dump (requiere MFA)
+python3 main.py -id example_one_prod
+# → Selecciona "Descargar SQL Dump"
+
+# 2. Luego trabaja localmente sin MFA
+python3 main.py --local
+# → Selecciona "Recrear Base de Datos"
+# → Selecciona el dump descargado
+```
+
+---
+
+#### `--logs`
+**Muestra el historial de operaciones (dumps y recreates)**
+
+```bash
+python3 main.py --logs
+```
+
+**Salida:**
+```
+═══════════════════════════════════════════════════════════════
+              HISTORIAL DE OPERACIONES
+═══════════════════════════════════════════════════════════════
+
+────────────────────────────────────────────────────────────────
+operacion DESCARGA_DUMP 2024-03-30T14:30:45.123456
+Dump:     example_one_prod_backup_2024-03-30.sql.gz
+Entorno:  Example One - PROD
+Fecha:    Sab Mar 30 14:30:45 2024
+Tamaño:   125.5 MB
+
+    Descarga de dump desde Example One - PROD
+
+────────────────────────────────────────────────────────────────
+operacion RECREAR_BASE_DATOS 2024-03-30T14:35:20.789012
+Dump:     example_one_prod_backup_2024-03-30.sql.gz
+Database: example_db
+Fecha:    Sab Mar 30 14:35:20 2024
+Duración: 45s
+Tamaño:   125.5 MB
+
+    Recreación de base de datos 'example_db' desde dump
+
+────────────────────────────────────────────────────────────────
+Mostrando 2 operaciones
+```
+
+**Cuándo usar:**
+- Para auditar qué dumps se descargaron y cuándo
+- Para verificar el tamaño de los dumps
+- Para revisar el tiempo que tomó recrear una base de datos
+- Para debugging o troubleshooting
+
+---
+
+### 🏢 Entorno Remoto vs 🏠 Local
+
+#### Entorno Remoto (Requiere MFA)
+**Operaciones que se conectan a AWS:**
+
+- ✅ Conectar SSH a instancias EC2
+- ✅ Descargar dumps SQL desde servidores remotos
+- ✅ Gestionar reglas de security groups dinámicamente
+- ✅ Obtener DNS dinámico de instancias EC2
+
+**Requisitos:**
+- Autenticación MFA válida
+- Credenciales AWS configuradas
+- Conexión a internet
+- Acceso a las instancias EC2 configuradas
+
+**Comandos que usan entorno remoto:**
+```bash
+python3 main.py                      # Modo normal (con MFA)
+python3 main.py -id example_one_prod # Acceso directo (con MFA)
+```
+
+---
+
+#### Entorno Local (Sin MFA)
+**Operaciones que se ejecutan solo en tu máquina:**
+
+- ✅ Recrear bases de datos desde dumps `.sql` o `.sql.gz`
+- ✅ Conectarse a MySQL local para consultas manuales
+- ✅ Ver historial de operaciones
+- ✅ Trabajar con dumps descargados previamente
+
+**Requisitos:**
+- MySQL Client instalado (solo para recrear BD)
+- Dumps SQL disponibles localmente
+
+**Comandos que usan entorno local:**
+```bash
+python3 main.py --local  # Modo solo-local (sin MFA)
+python3 main.py --logs   # Ver historial (sin MFA)
+```
+
+---
+
+### 💡 Ejemplos de Uso Prácticos
+
+#### Ejemplo 1: Workflow completo de desarrollo
+```bash
+# 1. Ver qué entornos están disponibles
+python3 main.py -e
+
+# 2. Descargar dump de QA para desarrollo local
+python3 main.py -id example_one_qa
+# → Selecciona "Descargar SQL Dump"
+
+# 3. Recrear la BD localmente (sin MFA)
+python3 main.py --local
+# → Selecciona "Recrear Base de Datos"
+# → Selecciona el dump descargado
+# → Selecciona la base de datos destino
+
+# 4. Conectarse a la BD local para pruebas
+python3 main.py --local
+# → Selecciona "Conectarse a BD local"
+```
+
+---
+
+#### Ejemplo 2: Acceso rápido SSH a producción
+```bash
+# Acceso directo sin navegar menús
+python3 main.py -id example_one_prod
+# → Ingresa código MFA
+# → Selecciona "Conectar SSH"
+# → ¡Conectado!
+```
+
+---
+
+#### Ejemplo 3: Verificar configuración
+```bash
+# Ver dónde están los archivos de config
+python3 main.py -c
+
+# Ver todos los entornos configurados
+python3 main.py -e
+
+# Ver el historial de operaciones
+python3 main.py --logs
+```
+
+---
+
+#### Ejemplo 4: Crear alias para uso frecuente
+```bash
+# Agregar a ~/.bashrc o ~/.zshrc
+alias ex1-prod='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_prod'
+alias ex1-qa='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_qa'
+alias ex-local='cd ~/repos/aws-manager-cli && python3 main.py --local'
+
+# Uso:
+ex1-prod     # Acceso directo a producción
+ex1-qa       # Acceso directo a QA
+ex-local     # Operaciones locales sin MFA
+```
+
+---
+
+### ⚙️ Tabla Resumen de Comandos
+
+| Comando | Descripción | Requiere MFA | Caso de Uso |
+|---------|-------------|--------------|-------------|
+| `--version` / `-v` | Muestra versión | ❌ | Verificar actualizaciones |
+| `--config` / `-c` | Muestra archivos de config | ❌ | Editar configuración |
+| `--environments` / `-e` | Lista entornos | ❌ | Ver IDs disponibles |
+| `--env ID` / `-id ID` | Acceso directo | ✅ | Acceso rápido a un entorno |
+| `--local` / `-l` | Modo solo-local | ❌ | Trabajar sin AWS |
+| `--logs` | Historial de operaciones | ❌ | Auditoría y debugging |
+| _(sin argumentos)_ | Modo normal completo | ✅ | Navegación completa |
+
+---
 
 ### Flujo de Uso
 
