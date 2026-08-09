@@ -3,22 +3,18 @@
 AWS Environment Manager - Python Edition
 
 Migrated from shell scripts and C++ to Python for better maintainability.
-Version is managed in src/__init__.py
+Version is managed in awsm_cli/__init__.py
 """
 import sys
 import os
-from pathlib import Path
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent / 'src'))
-
-from src import __version__
-from src.config import ConfigManager, show_config_usage, show_environments
-from src.auth import MFAAuthenticator
-from src.aws import EC2Manager, SecurityGroupManager
-from src.operations import SSHOperations, DumpOperations, DatabaseOperations
-from src.ui import MenuManager
-from src.cli import parse_cli_args
+from . import __version__
+from .config import ConfigManager, show_config_usage, show_environments
+from .auth import MFAAuthenticator
+from .aws import EC2Manager, SecurityGroupManager
+from .operations import SSHOperations, DumpOperations, DatabaseOperations
+from .ui import MenuManager
+from .cli import parse_cli_args
 
 
 def check_prerequisites() -> bool:
@@ -71,7 +67,7 @@ def main():
         return show_environments(config)
 
     if cli_options.show_logs:
-        from src.utils.logger import OperationsLogger
+        from .utils.logger import OperationsLogger
         OperationsLogger.display_logs()
         return 0
 
@@ -154,7 +150,7 @@ def main():
             action = choice.get('action')
             
             if action == 'view_logs':
-                from src.utils.logger import OperationsLogger
+                from .utils.logger import OperationsLogger
                 menu_manager.clear_screen()
                 OperationsLogger.display_logs()
                 menu_manager.wait_for_enter()
@@ -258,14 +254,3 @@ def main():
             menu_manager.wait_for_enter()
             menu_manager.clear_screen()
             continue
-
-
-if __name__ == '__main__':
-    try:
-        sys.exit(main())
-    except KeyboardInterrupt:
-        print("\n\n✗ Programa interrumpido por el usuario.")
-        sys.exit(0)
-    except Exception as e:
-        print(f"\n✗ Error fatal: {e}")
-        sys.exit(1)

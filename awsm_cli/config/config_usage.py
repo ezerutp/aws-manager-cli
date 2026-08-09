@@ -1,6 +1,6 @@
 """Helpers to inspect and display active configuration files."""
 from .config_manager import ConfigManager
-from src.utils import open_folder
+from ..utils import open_folder
 
 
 def show_config_usage(config: ConfigManager) -> int:
