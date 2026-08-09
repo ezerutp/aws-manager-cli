@@ -22,6 +22,12 @@ MONO_FONTS = [
 RADIUS = 12
 RADIUS_SMALL = 8
 
+# Padding de las celdas de las tablas. Qt le descuenta este padding al widget que
+# se ponga dentro de una celda, así que quien meta un botón en una tabla tiene
+# que sumarlo para calcular el ancho de la columna.
+CELL_PADDING_H = 8
+CELL_PADDING_V = 6
+
 
 @dataclass(frozen=True, slots=True)
 class Palette:
@@ -327,6 +333,23 @@ def stylesheet(palette: Palette) -> str:
         background: {palette.elevated};
     }}
 
+    /* Botón dentro de una fila de tabla. Lleva fondo propio a propósito: sobre
+       la fila seleccionada, que se pinta con el acento, un botón transparente
+       queda ilegible. */
+    QPushButton#RowAction {{
+        background: {palette.surface};
+        color: {palette.text};
+        border: 1px solid {palette.border_strong};
+        padding: 4px 10px;
+        font-size: 11px;
+    }}
+
+    QPushButton#RowAction:hover {{
+        background: {palette.accent};
+        color: {palette.accent_text};
+        border-color: {palette.accent};
+    }}
+
     QPushButton#IconButton {{
         background: transparent;
         border-color: transparent;
@@ -457,19 +480,29 @@ def stylesheet(palette: Palette) -> str:
         border-radius: {RADIUS_SMALL}px;
         font-size: 12px;
         alternate-background-color: {palette.surface};
-        selection-background-color: {palette.elevated};
-        selection-color: {palette.text};
+        selection-background-color: {palette.accent};
+        selection-color: {palette.accent_text};
         outline: none;
     }}
 
     QTreeWidget::item, QTableWidget::item {{
-        padding: 6px 8px;
+        padding: {CELL_PADDING_V}px {CELL_PADDING_H}px;
         border: none;
     }}
 
+    /* La fila elegida se pinta con el acento. Con `elevated` no se distinguía de
+       una fila alterna, y en el tema claro `elevated` y `surface` son el mismo
+       blanco: seleccionar no se veía y la lista parecía muerta. */
     QTreeWidget::item:selected, QTableWidget::item:selected {{
-        background: {palette.elevated};
-        color: {palette.text};
+        background: {palette.accent};
+        color: {palette.accent_text};
+    }}
+
+    /* Sin foco (por ejemplo mientras el botón de la fila lo tiene) la selección
+       se atenúa, pero se sigue viendo cuál es. */
+    QTreeWidget::item:selected:!active, QTableWidget::item:selected:!active {{
+        background: {palette.accent};
+        color: {palette.accent_text};
     }}
 
     QHeaderView::section {{

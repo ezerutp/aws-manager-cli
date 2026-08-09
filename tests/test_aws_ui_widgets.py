@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -17,7 +18,8 @@ try:
     from PySide6.QtCore import QPoint, Qt
     from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
 
-    from aws_ui.core import Backend
+    from aws_ui.core import Backend, RemoteDump
+    from aws_ui.dialogs import RemoteDumpDialog
     from aws_ui.theme import DARK, LIGHT, stylesheet
     from aws_ui.widgets import (
         ElidingLabel,
@@ -140,6 +142,79 @@ class WidgetTests(unittest.TestCase):
             sheet = stylesheet(palette)
             self.assertIn(palette.accent, sheet)
             self.assertIn("QProgressBar", sheet)
+
+    def test_a_selected_row_does_not_look_like_an_unselected_one(self):
+        """La selección se pintaba con `elevated`.
+
+        En el tema claro `elevated` y `surface` son el mismo blanco, así que
+        elegir una fila no se veía y la lista parecía no responder.
+        """
+        for palette in (DARK, LIGHT):
+            sheet = stylesheet(palette)
+            selected = sheet.split("QTableWidget::item:selected")[1].split("}")[0]
+            self.assertIn(palette.accent, selected)
+            self.assertNotIn(f"background: {palette.elevated}", selected)
+
+
+@unittest.skipUnless(HAS_QT, "PySide6 hace falta para las pruebas de widgets")
+class RemoteDumpDialogTests(unittest.TestCase):
+    """El diálogo desde el que se elige qué dump bajar."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.app = _application()
+        cls.app.setStyleSheet(stylesheet(DARK))
+
+    def _dialog(self, count: int = 3) -> "RemoteDumpDialog":
+        dumps = tuple(
+            RemoteDump(name=f"dump_{i}.sql.gz", size=f"{i} MB", date="2026-08-08")
+            for i in range(count)
+        )
+        dialog = RemoteDumpDialog(dumps, "ProjectX PROD")
+        self.addCleanup(dialog.deleteLater)
+        return dialog
+
+    def test_it_opens_with_the_first_dump_already_chosen(self):
+        dialog = self._dialog()
+        self.assertEqual(dialog.selected().name, "dump_0.sql.gz")
+        self.assertTrue(dialog.download.isEnabled())
+
+    def test_choosing_a_row_changes_what_will_be_downloaded(self):
+        dialog = self._dialog()
+        dialog.table.selectRow(2)
+        self.assertEqual(dialog.selected().name, "dump_2.sql.gz")
+        self.assertIn("dump_2.sql.gz", dialog.hint.text())
+
+    def test_every_row_has_its_own_download_button(self):
+        dialog = self._dialog()
+        self.assertEqual(len(dialog._row_buttons), 3)
+        for row in range(dialog.table.rowCount()):
+            self.assertIsNotNone(dialog.table.cellWidget(row, 3))
+
+    def test_the_button_of_a_row_downloads_that_row(self):
+        """El botón no depende de cuál fila esté seleccionada."""
+        dialog = self._dialog()
+        dialog.table.selectRow(0)
+        dialog._row_buttons[2].click()
+        self.assertEqual(dialog.result(), RemoteDumpDialog.DialogCode.Accepted)
+        self.assertEqual(dialog.selected().name, "dump_2.sql.gz")
+
+    def test_the_actions_column_is_wide_enough_for_its_button(self):
+        """Con `ResizeToContents` la columna quedaba en cero: Qt no mide los
+        widgets de celda, solo los items."""
+        dialog = self._dialog()
+        dialog.show()
+        self.app.processEvents()
+        button = dialog._row_buttons[0]
+        self.assertGreaterEqual(dialog.table.columnWidth(3), button.sizeHint().width())
+        self.assertGreaterEqual(button.width(), button.sizeHint().width())
+        self.assertGreaterEqual(button.height(), button.sizeHint().height())
+        dialog.close()
+
+    def test_an_empty_listing_leaves_nothing_to_download(self):
+        dialog = self._dialog(count=0)
+        self.assertIsNone(dialog.selected())
+        self.assertFalse(dialog.download.isEnabled())
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 hace falta para las pruebas de widgets")
@@ -288,6 +363,29 @@ class WindowTests(unittest.TestCase):
         self.window.clear_chosen_dump()
         self.assertTrue(self.window.chosen_row.isHidden())
         self.assertIsNone(self.window._dump_to_recreate())
+
+    def _download_after_picking(self, answer: bool) -> list:
+        """Elegir el primer dump del diálogo y contestar `answer` a la confirmación."""
+        env_type = self.window.snapshot.environments[0].types[0]
+        dumps = (RemoteDump(name="dump_0.sql.gz", size="120 MB", date="2026-08-08"),)
+        started: list = []
+        with mock.patch.object(
+            RemoteDumpDialog, "exec",
+            return_value=RemoteDumpDialog.DialogCode.Accepted,
+        ), mock.patch("aws_ui.window.confirm", return_value=answer) as asked, \
+                mock.patch.object(
+                    self.window, "_run_with_progress",
+                    side_effect=lambda *a, **k: started.append(a)):
+            self.window._pick_dump(env_type, dumps)
+        self.assertTrue(asked.called, "no se pidió confirmación")
+        return started
+
+    def test_a_download_is_confirmed_before_starting(self):
+        """Bajar un dump puede tardar y son varios GB: primero se pregunta."""
+        self.assertEqual(self._download_after_picking(answer=False), [])
+
+    def test_confirming_starts_the_download(self):
+        self.assertEqual(len(self._download_after_picking(answer=True)), 1)
 
     def test_recreate_is_disabled_when_there_is_nothing_to_import(self):
         self.window.select_local("database")

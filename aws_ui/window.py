@@ -1100,14 +1100,24 @@ class MainWindow(QMainWindow):
         if chosen is None:
             return
 
+        # Siempre se confirma antes de bajar: una descarga puede ser de varios GB
+        # y tarda. Si además pisa un archivo, la confirmación lo dice y se marca
+        # como destructiva.
         destination = self.backend.local_path_for(env_type, chosen.name)
-        if destination.exists() and not confirm(
+        overwrites = destination.exists()
+        details = (
+            f"Entorno: {env_type.label}\n"
+            f"Tamaño: {chosen.size}\n"
+            f"Destino: {destination}"
+        )
+        if not confirm(
             self,
-            "El archivo ya existe",
-            f"Ya hay un {destination.name} descargado.",
-            "Sobrescribir",
-            informative=str(destination),
-            destructive=True,
+            "El archivo ya existe" if overwrites else "Descargar dump",
+            f"Ya hay un {destination.name} descargado. ¿Sobrescribirlo?" if overwrites
+            else f"¿Descargar {chosen.name}?",
+            "Sobrescribir" if overwrites else "Descargar",
+            informative=details,
+            destructive=overwrites,
         ):
             return
 
