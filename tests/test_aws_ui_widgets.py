@@ -141,6 +141,19 @@ class WidgetTests(unittest.TestCase):
             self.assertIn(palette.accent, sheet)
             self.assertIn("QProgressBar", sheet)
 
+    def test_a_selected_row_does_not_look_like_an_unselected_one(self):
+        """La selección se pintaba con `elevated`.
+
+        En el tema claro `elevated` y `surface` son el mismo blanco, así que
+        elegir una fila no se veía y la lista parecía no responder.
+        """
+        for palette in (DARK, LIGHT):
+            sheet = stylesheet(palette)
+            selected = sheet.split("QTableWidget::item:selected")[1].split("}")[0]
+            self.assertIn(palette.accent, selected)
+            self.assertNotIn(f"background: {palette.elevated}", selected)
+
+
 
 @unittest.skipUnless(HAS_QT, "PySide6 hace falta para las pruebas de widgets")
 class WindowTests(unittest.TestCase):
