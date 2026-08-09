@@ -57,26 +57,57 @@ Mostrando 2 operaciones
 aws-manager-cli/
 ├── config.json                    # Credenciales AWS, MySQL, SSH, MFA
 ├── config-environment.json        # Entornos (dinámico, sin límites)
-├── main.py                        # Punto de entrada
 ├── setup.sh                       # Script de configuración inicial
 ├── install.sh                     # Script de instalación de binario
 ├── build.sh                       # Script de construcción
 ├── requirements.txt               # Dependencias Python
-├── aws-manager.spec               # Especificación PyInstaller para compilación
-└── src/
-    ├── config/
-    │   └── config_manager.py     # Gestión de configuración
-    ├── auth/
-    │   └── mfa_auth.py           # Autenticación MFA
-    ├── aws/
-    │   ├── ec2.py                # Operaciones EC2
-    │   └── security_group.py    # Gestión Security Groups
-    ├── operations/
-    │   ├── ssh_ops.py            # Conexiones SSH
-    │   ├── dump_ops.py           # Descarga de dumps
-    │   └── db_ops.py             # Recreación de BD
-    └── ui/
-        └── menu.py               # Menús dinámicos
+├── pyproject.toml                 # Paquete, entry points y extra [ui]
+├── aws-manager.spec               # Especificación PyInstaller (CLI, sin Qt)
+│
+├── awsm_cli/                      # ─── El CLI ───────────────────────
+│   ├── main.py                    # Punto de entrada (bucle de menús)
+│   ├── __main__.py                # `python3 -m awsm_cli`
+│   ├── config/
+│   │   ├── config_manager.py      # Gestión y guardado de configuración
+│   │   ├── config_usage.py        # Inspección de config y entornos
+│   │   └── bundle.py              # Exportar/importar configuración y llaves
+│   ├── auth/
+│   │   └── mfa_auth.py            # Autenticación MFA
+│   ├── aws/
+│   │   ├── ec2.py                 # Operaciones EC2
+│   │   └── security_group.py      # Gestión Security Groups
+│   ├── operations/
+│   │   ├── ssh_ops.py             # Conexiones SSH
+│   │   ├── dump_ops.py            # Descarga de dumps
+│   │   ├── dump_index.py          # Índice: de qué entorno es cada dump
+│   │   └── db_ops.py              # Recreación de BD
+│   ├── cli/
+│   │   └── args.py                # Parseo de argumentos
+│   ├── ui/
+│   │   └── menu.py                # Menús dinámicos de terminal
+│   └── utils/
+│       ├── logger.py              # Registro de operaciones
+│       ├── secrets.py             # Enmascarar y verificar secretos
+│       ├── shell_env.py           # Leer variables del shell de login
+│       └── system_ops.py          # Helpers del sistema
+│
+├── aws_ui/                        # ─── La interfaz gráfica ──────────
+│   ├── core.py                    # Puente a awsm_cli, sin Qt
+│   ├── theme.py                   # Tokens de color y QSS
+│   ├── widgets.py                 # Widgets propios
+│   ├── icons.py                   # Iconos dibujados en runtime
+│   ├── dialogs.py                 # MFA, dumps remotos, rutas en uso
+│   ├── settings.py                # Ventana de configuración completa
+│   ├── window.py                  # Ventana principal
+│   └── app.py                     # Entry point
+│
+├── scripts/
+│   ├── install_ui.sh              # Instalación de la UI en ~/.local (sin sudo)
+│   └── render_ui.py               # Render offscreen de la UI a PNG, ambos temas
+├── tests/                         # Pruebas (corren con y sin PySide6)
+└── docs/
+    ├── ui.md                      # Diseño e implementación de la UI
+    └── ui-guia.md                 # Guía de la que salió la UI
 
 # Directorio de dumps (creado automáticamente)
 ~/db_dump/                         # Ubicación predeterminada de dumps SQL
@@ -104,7 +135,8 @@ sudo apt install python3 python3-pip awscli openssh-client mysql-client
 
 ## Scripts de Automatización
 
-El proyecto incluye tres scripts para facilitar la instalación y distribución:
+El proyecto incluye scripts para facilitar la instalación y distribución. Los
+tres primeros son del CLI; `scripts/install_ui.sh` es el de la interfaz gráfica.
 
 ### setup.sh - Preparación del entorno de desarrollo
 
@@ -116,7 +148,6 @@ Prepara el entorno Python para ejecutar el proyecto directamente desde el códig
 - ✓ Instala dependencias Python desde `requirements.txt`
 - ✓ Verifica herramientas del sistema (AWS CLI, SSH, MySQL)
 - ✓ Crea archivos de configuración desde los ejemplos
-- ✓ Hace ejecutable `main.py`
 
 **Uso:**
 
@@ -124,7 +155,7 @@ Prepara el entorno Python para ejecutar el proyecto directamente desde el códig
 ./setup.sh
 ```
 
-**Resultado:** Entorno listo para ejecutar con `./main.py` o `python3 main.py`
+**Resultado:** Entorno listo para ejecutar con `python3 -m awsm_cli`
 
 ---
 
@@ -186,20 +217,71 @@ Puedes usar cualquier nombre válido (letras, números, guiones) excepto comando
 
 ---
 
+### install-local.sh - Instalación sin permisos de administrador
+
+Instala el binario en tu directorio personal para entornos sin acceso sudo (contenedores, restricciones de seguridad).
+
+**Qué hace:**
+
+- ✓ Instala en `~/.local/bin/` (no requiere sudo)
+- ✓ Permite crear alias/symlink personalizado
+- ✓ Crea directorio de configuración `~/.config/aws-manager/`
+- ✓ Copia archivos de configuración
+- ✓ Ofrece agregar automáticamente `~/.local/bin` al PATH
+- ✓ Verifica dependencias del sistema
+
+**Uso:**
+
+```bash
+./install-local.sh
+```
+
+**Durante la instalación:**
+
+Si `~/.local/bin` no está en tu PATH, el script te ofrecerá agregarlo automáticamente:
+
+```
+⚠ $HOME/.local/bin no está en PATH
+¿Deseas agregar automáticamente $HOME/.local/bin a tu PATH? (s/N): s
+✓ PATH actualizado en ~/.zshrc
+```
+
+**¿Cuándo usar install-local.sh en lugar de install.sh?**
+
+- ✓ Cuando no tienes acceso sudo
+- ✓ En contenedores Docker con restricciones de seguridad
+- ✓ En entornos corporativos con políticas restrictivas
+- ✓ Para instalaciones por usuario sin afectar el sistema
+
+**Resultado:**
+- Comando `aws-manager` disponible en tu usuario
+- No requiere permisos de administrador
+- Instalación aislada en tu directorio personal
+
+---
+
 ### Flujo completo de trabajo
 
 **Para desarrollo:**
 
 ```bash
 ./setup.sh           # Una vez: preparar entorno
-./main.py            # Ejecutar desde código fuente
+python3 -m awsm_cli            # Ejecutar desde código fuente
 ```
 
 **Para producción:**
 
 ```bash
 ./build.sh           # Compilar binario
-sudo ./install.sh    # Instalar en el sistema
+sudo ./install.sh    # Instalar en el sistema (requiere sudo)
+aws-manager          # Ejecutar desde cualquier lugar
+```
+
+**Para producción (sin sudo):**
+
+```bash
+./build.sh           # Compilar binario
+./install-local.sh   # Instalar en ~/.local/bin (sin sudo)
 aws-manager          # Ejecutar desde cualquier lugar
 ```
 
@@ -370,7 +452,7 @@ export AWS_DEFAULT_REGION='us-east-1'
 ### Ejecutar el Programa
 
 ```bash
-python3 main.py
+python3 -m awsm_cli
 ```
 
 O si instalaste el binario:
@@ -386,7 +468,7 @@ AWS Manager soporta varios argumentos de línea de comandos para diferentes modo
 ### 🎮 Sintaxis General
 
 ```bash
-python3 main.py [OPCIONES]
+python3 -m awsm_cli [OPCIONES]
 ```
 
 ### 📋 Comandos Disponibles
@@ -395,7 +477,7 @@ python3 main.py [OPCIONES]
 **Muestra la versión del programa**
 
 ```bash
-python3 main.py --version
+python3 -m awsm_cli --version
 ```
 
 **Salida:**
@@ -411,7 +493,7 @@ AWS Manager CLI v2.1.0 "Phoenix"
 **Muestra los archivos de configuración en uso y permite abrir su carpeta**
 
 ```bash
-python3 main.py --config
+python3 -m awsm_cli --config
 ```
 
 **Salida:**
@@ -440,7 +522,7 @@ Configuración de entornos (config-environment.json)
 **Lista todos los entornos configurados con sus detalles**
 
 ```bash
-python3 main.py --environments
+python3 -m awsm_cli --environments
 ```
 
 **Salida:**
@@ -481,9 +563,9 @@ Total: 2 entorno(s) configurado(s)
 **Acceso directo a un entorno específico (requiere MFA)**
 
 ```bash
-python3 main.py --env example_one_prod
+python3 -m awsm_cli --env example_one_prod
 # O forma corta:
-python3 main.py -id example_one_prod
+python3 -m awsm_cli -id example_one_prod
 ```
 
 **Qué hace:**
@@ -513,14 +595,14 @@ Selecciona una opción:
 
 **Cuándo usar:**
 - Cuando trabajas frecuentemente con el mismo entorno
-- Para crear scripts o aliases (ej: `alias ex1-prod='python3 main.py -id example_one_prod'`)
+- Para crear scripts o aliases (ej: `alias ex1-prod='python3 -m awsm_cli -id example_one_prod'`)
 - Para acceso rápido sin navegar por todos los menús
 
 **Ejemplo de alias útil:**
 ```bash
 # Agregar a ~/.bashrc o ~/.zshrc
-alias aws-ex1-prod='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_prod'
-alias aws-ex1-qa='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_qa'
+alias aws-ex1-prod='cd ~/repos/aws-manager-cli && python3 -m awsm_cli -id example_one_prod'
+alias aws-ex1-qa='cd ~/repos/aws-manager-cli && python3 -m awsm_cli -id example_one_qa'
 ```
 
 ---
@@ -529,7 +611,7 @@ alias aws-ex1-qa='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_
 **Modo local: omite MFA y muestra solo operaciones locales**
 
 ```bash
-python3 main.py --local
+python3 -m awsm_cli --local
 ```
 
 **Qué hace:**
@@ -564,11 +646,11 @@ Selecciona una opción:
 **Caso de uso común:**
 ```bash
 # 1. Primero descarga un dump (requiere MFA)
-python3 main.py -id example_one_prod
+python3 -m awsm_cli -id example_one_prod
 # → Selecciona "Descargar SQL Dump"
 
 # 2. Luego trabaja localmente sin MFA
-python3 main.py --local
+python3 -m awsm_cli --local
 # → Selecciona "Recrear Base de Datos"
 # → Selecciona el dump descargado
 ```
@@ -579,7 +661,7 @@ python3 main.py --local
 **Muestra el historial de operaciones (dumps y recreates)**
 
 ```bash
-python3 main.py --logs
+python3 -m awsm_cli --logs
 ```
 
 **Salida:**
@@ -637,8 +719,8 @@ Mostrando 2 operaciones
 
 **Comandos que usan entorno remoto:**
 ```bash
-python3 main.py                      # Modo normal (con MFA)
-python3 main.py -id example_one_prod # Acceso directo (con MFA)
+python3 -m awsm_cli                      # Modo normal (con MFA)
+python3 -m awsm_cli -id example_one_prod # Acceso directo (con MFA)
 ```
 
 ---
@@ -657,8 +739,8 @@ python3 main.py -id example_one_prod # Acceso directo (con MFA)
 
 **Comandos que usan entorno local:**
 ```bash
-python3 main.py --local  # Modo solo-local (sin MFA)
-python3 main.py --logs   # Ver historial (sin MFA)
+python3 -m awsm_cli --local  # Modo solo-local (sin MFA)
+python3 -m awsm_cli --logs   # Ver historial (sin MFA)
 ```
 
 ---
@@ -668,20 +750,20 @@ python3 main.py --logs   # Ver historial (sin MFA)
 #### Ejemplo 1: Workflow completo de desarrollo
 ```bash
 # 1. Ver qué entornos están disponibles
-python3 main.py -e
+python3 -m awsm_cli -e
 
 # 2. Descargar dump de QA para desarrollo local
-python3 main.py -id example_one_qa
+python3 -m awsm_cli -id example_one_qa
 # → Selecciona "Descargar SQL Dump"
 
 # 3. Recrear la BD localmente (sin MFA)
-python3 main.py --local
+python3 -m awsm_cli --local
 # → Selecciona "Recrear Base de Datos"
 # → Selecciona el dump descargado
 # → Selecciona la base de datos destino
 
 # 4. Conectarse a la BD local para pruebas
-python3 main.py --local
+python3 -m awsm_cli --local
 # → Selecciona "Conectarse a BD local"
 ```
 
@@ -690,7 +772,7 @@ python3 main.py --local
 #### Ejemplo 2: Acceso rápido SSH a producción
 ```bash
 # Acceso directo sin navegar menús
-python3 main.py -id example_one_prod
+python3 -m awsm_cli -id example_one_prod
 # → Ingresa código MFA
 # → Selecciona "Conectar SSH"
 # → ¡Conectado!
@@ -701,13 +783,13 @@ python3 main.py -id example_one_prod
 #### Ejemplo 3: Verificar configuración
 ```bash
 # Ver dónde están los archivos de config
-python3 main.py -c
+python3 -m awsm_cli -c
 
 # Ver todos los entornos configurados
-python3 main.py -e
+python3 -m awsm_cli -e
 
 # Ver el historial de operaciones
-python3 main.py --logs
+python3 -m awsm_cli --logs
 ```
 
 ---
@@ -715,9 +797,9 @@ python3 main.py --logs
 #### Ejemplo 4: Crear alias para uso frecuente
 ```bash
 # Agregar a ~/.bashrc o ~/.zshrc
-alias ex1-prod='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_prod'
-alias ex1-qa='cd ~/repos/aws-manager-cli && python3 main.py -id example_one_qa'
-alias ex-local='cd ~/repos/aws-manager-cli && python3 main.py --local'
+alias ex1-prod='cd ~/repos/aws-manager-cli && python3 -m awsm_cli -id example_one_prod'
+alias ex1-qa='cd ~/repos/aws-manager-cli && python3 -m awsm_cli -id example_one_qa'
+alias ex-local='cd ~/repos/aws-manager-cli && python3 -m awsm_cli --local'
 
 # Uso:
 ex1-prod     # Acceso directo a producción
@@ -776,17 +858,35 @@ Al descargar un dump, el archivo se guarda en el directorio configurado en `path
 
 El directorio se crea automáticamente si no existe.
 
-#### Nomenclatura de archivos
+#### Organización de los archivos
 
-El nombre del archivo local lleva como prefijo el nombre del entorno normalizado, seguido del nombre del archivo remoto:
+Cada dump se guarda **con el nombre que tenía en el servidor**, dentro de una
+subcarpeta por entorno:
 
 ```
-~/db_dump/qa_example_one_dump_qa_2026-03-17.sql.gz
-          ──────────────────  ───────────────────────────────
-          prefijo (entorno)   nombre del archivo en el servidor
+~/db_dump/
+├── .aws-manager-dumps.json          # índice: de qué entorno vino cada dump
+├── example_one_prod/
+│   └── dump_prod_2026-03-17.sql.gz
+├── example_one_qa/
+│   └── dump_prod_2026-03-17.sql.gz  # mismo nombre, sin conflicto
+└── ...
 ```
 
-Esto permite identificar fácilmente de qué entorno proviene cada dump cuando hay múltiples descargas.
+La subcarpeta es lo que evita que dos entornos con un dump del mismo nombre se
+pisen. De qué entorno es cada archivo lo dice `.aws-manager-dumps.json`, no el
+nombre: el índice guarda el entorno, el nombre remoto original, la fecha de
+descarga y el tamaño.
+
+**Por qué un índice y no un prefijo en el nombre:** adivinar el entorno parseando
+el nombre del archivo se rompe en cuanto un id de entorno contiene un guión bajo,
+o alguien renombra un dump. Con el índice, el filtro por entorno de la interfaz
+gráfica es exacto y el archivo conserva su nombre.
+
+**Dumps anteriores a este cambio:** los que ya tenían el prefijo (`example_one_prod_dump_...`)
+se siguen reconociendo por el prefijo y no hay que mover ni renombrar nada. Si
+borrás el índice, tampoco se pierde información crítica: los dumps siguen ahí y
+la carpeta que los contiene sigue diciendo de qué entorno son.
 
 #### Resolución de rutas
 
@@ -805,10 +905,115 @@ El directorio de dumps se resuelve de manera inteligente:
 
 Al recrear una base de datos, el programa busca automáticamente archivos `.sql` y `.sql.gz` en:
 
-1. **Primero**: En el directorio de dumps configurado (ej: `~/db_dump`)
+1. **Primero**: En el directorio de dumps configurado (ej: `~/db_dump`), **incluidas sus subcarpetas por entorno**
 2. **Después**: En el directorio actual (`.`)
 
 Esto significa que tus dumps descargados aparecerán automáticamente en el menú de selección de archivos, sin necesidad de especificar rutas manualmente.
+
+En la interfaz gráfica, además, la lista se puede **filtrar por entorno** (o por
+entorno padre, para ver PROD y QA juntos) y hay un botón **Elegir archivo…** para
+importar un `.sql`/`.sql.gz` de cualquier otra carpeta.
+
+## 🖥️ Interfaz gráfica (opcional)
+
+Además del CLI hay una UI de escritorio (PySide6/Qt) que usa el mismo `src/` y la
+misma configuración. El binario `aws-manager` **no cambia**: sigue siendo el
+ejecutable chico de PyInstaller, sin Qt. La UI es un extra aparte, con su propio
+virtualenv.
+
+```bash
+./scripts/install_ui.sh     # instala en ~/.local, sin sudo (descarga ~110 MB de Qt)
+aws-manager-ui              # o desde el menú de aplicaciones, como "aws-manager"
+./scripts/install_ui.sh --uninstall
+```
+
+**Qué agrega sobre el menú de terminal:**
+
+- ⏱️ **Cuánto le queda a la sesión MFA** — el CLI descartaba el `Expiration` que
+  devuelve STS; ahora se guarda y se muestra
+- 🔐 **Si tu IP ya está autorizada** en el Security Group de cada entorno, y qué
+  regla exacta se revocaría y cuál se autorizaría antes de tocar nada
+- 📊 **Progreso real** de la descarga (`scp`) y del import a MySQL, con MB/s
+- ⏹️ **Cancelar una descarga** sin quedarte con un `.sql.gz` truncado
+- 🌳 **El árbol de entornos completo a la vista**, en vez de navegar tres niveles
+- 🗂️ **Filtro de dumps por entorno**, exacto porque sale del índice y no de
+  parsear el nombre del archivo, más un selector para importar uno de
+  cualquier otra carpeta
+- ⚙️ **Configuración editable** — credenciales, SSH, MySQL, rutas y el árbol de
+  entornos completo, sin editar JSON a mano
+- 🙈 **Secretos que no se muestran** — se ve si están puestos, cómo terminan y de
+  dónde salen; para verificarlos se pregunta a AWS, no se revelan
+- 🔑 **Una llave SSH por entorno** — cada tipo puede usar la general o la suya
+- 📦 **Exportar e importar** la configuración con las llaves, para mudarse de
+  máquina sin rearmar nada
+- 📋 **Historial en tabla**, leído de los mismos logs JSON que `--logs`
+
+SSH y el `mysql` interactivo se abren en el emulador de terminal del sistema
+(`ptyxis`, `kgx`, `gnome-terminal`, `konsole`, `xterm`…), porque son sesiones de
+terminal de verdad. La actualización del Security Group sí ocurre dentro de la
+UI, con confirmación y feedback.
+
+Sin sesión MFA válida, las acciones remotas quedan deshabilitadas con el motivo a
+la vista; las operaciones locales siguen disponibles, igual que `--local`.
+
+### Configuración desde la interfaz
+
+El engranaje (`Ctrl+,`) abre la configuración completa, en cuatro pestañas:
+
+| Pestaña | Qué tiene |
+| --- | --- |
+| **Credenciales** | `access_key` y `secret_key` enmascaradas, region, `rule_description`, verificación contra AWS y las variables de entorno del proceso |
+| **Conexión** | la llave SSH general (con permisos y huella), SSH, MySQL local y la carpeta de dumps |
+| **Entornos** | el árbol de entornos padre y sus tipos, editable, con la llave de cada uno |
+| **Exportar / importar** | paquetes `.zip` con la configuración y las llaves |
+
+**Las variables de entorno se detectan aunque estén en tu `.zshrc`.** Una app
+lanzada desde el menú del escritorio *no* hereda lo que exporta ese archivo: lo
+lee solo un shell interactivo, y a la app la arranca systemd con su propio
+entorno. Por eso la app le pregunta al shell de login (`$SHELL -l -i -c`) por las
+variables `AWS_*` que le falten, al arrancar y también con el botón *Releer del
+shell*. Funciona con zsh, bash, dash y ksh, y tiene una variante para fish, que
+usa otra sintaxis.
+
+Solo se importan las variables de una lista blanca (`AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN`, `AWS_DEFAULT_REGION`, `AWS_REGION`,
+`AWS_PROFILE`). Traerse el entorno entero sería una forma cómoda de que un
+`.zshrc` cambiara el `PATH` de la app. Una variable ya definida al arrancar no se
+pisa, y la tabla dice de dónde salió cada una.
+
+**Los secretos no se muestran nunca.** Se ve si están puestos, cómo terminan
+(`AKIA••••••••••••MPLE`), cuántos caracteres tienen y si salen del archivo o del
+entorno. Para comprobar que funcionan se ejecuta `aws sts get-caller-identity` y
+se muestra el ARN, que no es secreto. El campo para cambiarlos arranca vacío: un
+valor guardado no vuelve a pasar por la pantalla.
+
+Con la llave SSH pasa lo mismo: no se lee su contenido. Se verifica que exista,
+que tenga permisos 600 (con un botón para corregirlos) y se muestra su huella
+SHA256, que es pública y sirve para confirmar cuál es.
+
+**Llave por entorno.** Cada tipo puede usar la llave general o una propia. Un
+`key_path` vacío o ausente significa "usar la general", que es como se comportaban
+todos los entornos antes de que esto existiera, así que no hay que tocar nada.
+
+**Exportar e importar.** El paquete es un `.zip` con `config.json`,
+`config-environment.json` y las llaves. Las rutas de las llaves se reescriben a
+rutas relativas al paquete y, al importar, se copian a `~/.config/aws-manager/keys/`
+con permisos 600 — así funciona en otra máquina, donde `/home/otro/...` no existe.
+Incluir las credenciales AWS es opcional y está desmarcado por omisión; si el
+paquete no las trae, importar **no borra** las que ya tenías.
+
+> ⚠ Un paquete con llaves o credenciales da acceso a tu infraestructura. Se
+> escribe con permisos 600, pero tratalo como tratarías la llave privada.
+
+**La aplicación no corre en segundo plano.** No hay icono de bandeja: cerrar la
+ventana termina el proceso y borra el token de sesión temporal. Es deliberado —
+las credenciales MFA viven en el entorno del proceso, y dejarlo corriendo
+escondido las mantendría disponibles durante horas sin nada en pantalla que lo
+recuerde. Si hay una operación en curso, se avisa antes de salir.
+
+Los detalles de diseño e implementación están en [`docs/ui.md`](docs/ui.md).
+
+---
 
 ## Preguntas Frecuentes (FAQ)
 
