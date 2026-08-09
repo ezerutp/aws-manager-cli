@@ -6,8 +6,10 @@ block_cipher = None
 
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['awsm_cli/pyinstaller_entry.py'],
+    # La raiz del repo, para que `import awsm_cli` resuelva: PyInstaller solo
+    # agrega al path la carpeta del script de entrada.
+    pathex=['.'],
     binaries=[],
     datas=[
         ('config.example.json', '.'),

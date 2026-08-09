@@ -2,24 +2,25 @@
 import json
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Callable, Optional, List, Dict
 
 
 class OperationsLogger:
     """Handles logging for dump download and database recreate operations"""
-    
-    def __init__(self):
+
+    def __init__(self, on_output: Optional[Callable[[str], None]] = None):
         """Initialize the logger with config directory"""
+        self._out: Callable[[str], None] = on_output or print
         self.config_dir = Path.home() / ".config" / "aws-manager"
         self.logs_dir = self.config_dir / "logs"
         self._ensure_logs_directory()
-    
+
     def _ensure_logs_directory(self):
         """Create logs directory if it doesn't exist"""
         try:
             self.logs_dir.mkdir(parents=True, exist_ok=True)
         except Exception as e:
-            print(f"⚠ Advertencia: No se pudo crear directorio de logs: {e}")
+            self._out(f"⚠ Advertencia: No se pudo crear directorio de logs: {e}")
     
     def _get_current_datetime_info(self) -> dict:
         """Get current date and time information"""
@@ -73,7 +74,7 @@ class OperationsLogger:
             return True
             
         except Exception as e:
-            print(f"⚠ Advertencia: No se pudo registrar en log: {e}")
+            self._out(f"⚠ Advertencia: No se pudo registrar en log: {e}")
             return False
     
     def log_database_recreate(self, dump_name: str, database_name: str, 
@@ -124,7 +125,7 @@ class OperationsLogger:
             return True
             
         except Exception as e:
-            print(f"⚠ Advertencia: No se pudo registrar en log: {e}")
+            self._out(f"⚠ Advertencia: No se pudo registrar en log: {e}")
             return False
     
     def get_recent_dumps(self, limit: int = 10) -> list:
@@ -146,7 +147,7 @@ class OperationsLogger:
             return entries[-limit:] if len(entries) > limit else entries
             
         except Exception as e:
-            print(f"⚠ Error al leer logs: {e}")
+            self._out(f"⚠ Error al leer logs: {e}")
             return []
     
     def get_recent_recreates(self, limit: int = 10) -> list:
@@ -168,7 +169,7 @@ class OperationsLogger:
             return entries[-limit:] if len(entries) > limit else entries
             
         except Exception as e:
-            print(f"⚠ Error al leer logs: {e}")
+            self._out(f"⚠ Error al leer logs: {e}")
             return []
     
     def get_logs_directory(self) -> Path:

@@ -32,7 +32,7 @@ fi
 echo ""
 echo "Limpiando builds anteriores..."
 rm -rf build/ dist/ __pycache__
-find src -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
+find awsm_cli aws_ui -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 echo "✓ Limpieza completada"
 
 # Build with PyInstaller

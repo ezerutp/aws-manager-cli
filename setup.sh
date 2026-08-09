@@ -73,9 +73,6 @@ else
     echo "✓ config-environment.json ya existe"
 fi
 
-# Make main.py executable
-chmod +x main.py
-echo "✓ main.py es ejecutable"
 
 echo ""
 echo "╔════════════════════════════════════════╗"
@@ -85,5 +82,5 @@ echo ""
 echo "Pasos siguientes:"
 echo "1. Edita config.json con tus credenciales AWS"
 echo "2. Edita config-environment.json con tus entornos"
-echo "3. Ejecuta: ./main.py o python3 main.py"
+echo "3. Ejecuta: python3 -m awsm_cli"
 echo ""

@@ -1,6 +1,6 @@
 """Helpers to inspect and display active configuration files."""
 from .config_manager import ConfigManager
-from src.utils import open_folder
+from ..utils import open_folder
 
 
 def show_config_usage(config: ConfigManager) -> int:
@@ -75,18 +75,20 @@ def show_environments(config: ConfigManager) -> int:
     
     for idx, env in enumerate(environments, start=1):
         env_id = env.get('id', 'N/A')
-        description = env.get('description', 'Sin descripción')
+        # Las claves reales del JSON son 'name' y 'security_group_id'; leyendo
+        # 'description' y 'security_group' todo salía como "Sin descripción" y "N/A".
+        name = env.get('name') or env.get('description') or 'Sin nombre'
         types = env.get('types', [])
-        
-        print(f"{idx}. {description} (ID: {env_id})")
-        
+
+        print(f"{idx}. {name} (ID: {env_id})")
+
         if types:
             print("   Tipos disponibles:")
             for type_config in types:
                 type_id = type_config.get('id', 'N/A')
                 type_name = type_config.get('name', 'N/A')
                 instance_id = type_config.get('instance_id', 'N/A')
-                security_group = type_config.get('security_group', 'N/A')
+                security_group = type_config.get('security_group_id', 'N/A')
                 print(f"      • {type_name} (ID: {type_id})")
                 print(f"        - Instance ID: {instance_id}")
                 print(f"        - Security Group: {security_group}")

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aws-manager"
+version = "2.1.0"
+description = "Gestion de conexiones SSH, dumps SQL y bases de datos locales en entornos AWS."
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+  { name = "Ezer Vidarte" }
+]
+dependencies = [
+  "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+# PySide6-Essentials pesa ~110 MB. El paquete completo agrega WebEngine, 3D y
+# multimedia, que la UI no usa.
+ui = ["PySide6-Essentials>=6.6"]
+
+[project.scripts]
+aws-manager = "awsm_cli.__main__:run"
+aws-manager-ui = "aws_ui.app:main"
+
+[tool.setuptools.packages.find]
+include = ["awsm_cli*", "aws_ui*"]

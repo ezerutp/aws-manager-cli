@@ -1,0 +1,268 @@
+"""Dialogs: MFA, remote dump picker, config info and confirmations."""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Sequence
+
+from PySide6.QtCore import QUrl, Qt
+from PySide6.QtGui import QDesktopServices, QIntValidator
+from PySide6.QtWidgets import (
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
+
+from .core import Backend, RemoteDump, Session
+from .widgets import data_table, set_table_row
+
+
+class MfaDialog(QDialog):
+    """The six digits, asked once at start or when the session runs out.
+
+    `MFAAuthenticator` leía el código con `input()`; acá se pide con este diálogo y
+    se le pasa como parámetro, que es lo que permite usarlo sin terminal.
+    """
+
+    LOCAL_ONLY = 2  # código de retorno propio: seguir sin MFA, solo local
+
+    def __init__(self, session: Session, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Autenticación MFA")
+        self.setModal(True)
+        self.setMinimumWidth(420)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 20)
+        layout.setSpacing(14)
+
+        title = QLabel("Autenticación MFA")
+        title.setObjectName("DialogTitle")
+        layout.addWidget(title)
+
+        reason = {
+            "none": "Las operaciones sobre AWS necesitan una sesión MFA.",
+            "active": "La sesión MFA expiró. Ingresá un código nuevo.",
+            "inherited": "Hay una sesión heredada del entorno. Podés renovarla acá.",
+        }.get(session.state, "Ingresá el código de tu dispositivo MFA.")
+        subtitle = QLabel(reason + "\nSe autentica una vez y vale para toda la sesión.")
+        subtitle.setObjectName("FieldHint")
+        subtitle.setWordWrap(True)
+        layout.addWidget(subtitle)
+
+        self.code = QLineEdit()
+        self.code.setObjectName("MfaCode")
+        self.code.setMaxLength(6)
+        self.code.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.code.setPlaceholderText("······")
+        self.code.setValidator(QIntValidator(0, 999999, self))
+        layout.addWidget(self.code)
+
+        self.error = QLabel("")
+        self.error.setObjectName("FieldError")
+        self.error.setWordWrap(True)
+        self.error.hide()
+        layout.addWidget(self.error)
+
+        buttons = QHBoxLayout()
+        buttons.setContentsMargins(0, 0, 0, 0)
+        buttons.setSpacing(8)
+        local = QPushButton("Solo local")
+        local.setToolTip("Sigue sin MFA: solo operaciones que corren en esta máquina.")
+        local.clicked.connect(lambda: self.done(self.LOCAL_ONLY))
+        cancel = QPushButton("Cancelar")
+        cancel.clicked.connect(self.reject)
+        self.accept_button = QPushButton("Autenticar")
+        self.accept_button.setObjectName("Primary")
+        self.accept_button.setDefault(True)
+        self.accept_button.setEnabled(False)
+        self.accept_button.clicked.connect(self.accept)
+        buttons.addWidget(local)
+        buttons.addStretch(1)
+        buttons.addWidget(cancel)
+        buttons.addWidget(self.accept_button)
+        layout.addLayout(buttons)
+
+        self.code.textChanged.connect(self._on_text_changed)
+
+    def _on_text_changed(self, text: str) -> None:
+        complete = len(text) == 6 and text.isdigit()
+        self.accept_button.setEnabled(complete)
+        self.code.setProperty("invalid", "true" if text and not text.isdigit() else "false")
+        self.code.style().unpolish(self.code)
+        self.code.style().polish(self.code)
+        if complete:
+            self.error.hide()
+
+    def show_error(self, message: str) -> None:
+        self.error.setText(message)
+        self.error.show()
+        self.code.selectAll()
+        self.code.setFocus()
+
+    def value(self) -> str:
+        return self.code.text().strip()
+
+
+class RemoteDumpDialog(QDialog):
+    """Pick one of the dumps sitting on the bastion.
+
+    `get_remote_dumps_list` ya devuelve nombre, tamaño y fecha, así que no hay que
+    escribir el nombre del archivo a mano ni adivinar cuál es el último.
+    """
+
+    def __init__(
+        self,
+        dumps: Sequence[RemoteDump],
+        environment_label: str,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Descargar dump")
+        self.setModal(True)
+        self.setMinimumSize(620, 380)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 20)
+        layout.setSpacing(14)
+
+        title = QLabel("Dumps disponibles")
+        title.setObjectName("DialogTitle")
+        layout.addWidget(title)
+
+        subtitle = QLabel(f"En el servidor de {environment_label}, bajo ~/")
+        subtitle.setObjectName("FieldHint")
+        layout.addWidget(subtitle)
+
+        self.table = data_table(["ARCHIVO", "TAMAÑO", "FECHA"], right_aligned=(1, 2))
+        self.table.setRowCount(len(dumps))
+        for row, dump in enumerate(dumps):
+            set_table_row(self.table, row, (dump.name, dump.size, dump.date),
+                          right_aligned=(1, 2))
+
+        self._dumps = list(dumps)
+        if dumps:
+            self.table.selectRow(0)
+        self.table.doubleClicked.connect(lambda _: self._accept_if_selected())
+        layout.addWidget(self.table, 1)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        cancel = QPushButton("Cancelar")
+        cancel.clicked.connect(self.reject)
+        self.download = QPushButton("Descargar")
+        self.download.setObjectName("Primary")
+        self.download.setDefault(True)
+        self.download.setEnabled(bool(dumps))
+        self.download.clicked.connect(self._accept_if_selected)
+        buttons.addWidget(cancel)
+        buttons.addWidget(self.download)
+        layout.addLayout(buttons)
+
+    def selected(self) -> RemoteDump | None:
+        row = self.table.currentRow()
+        if 0 <= row < len(self._dumps):
+            return self._dumps[row]
+        return None
+
+    def _accept_if_selected(self) -> None:
+        if self.selected() is not None:
+            self.accept()
+
+
+class ConfigDialog(QDialog):
+    """Which files are in use and where, the equivalent of `--config`."""
+
+    def __init__(self, backend: Backend, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Configuración")
+        self.setModal(True)
+        self.setMinimumWidth(620)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(24, 22, 24, 20)
+        layout.setSpacing(12)
+
+        title = QLabel("Archivos en uso")
+        title.setObjectName("DialogTitle")
+        layout.addWidget(title)
+
+        for label, filename, path in backend.config_files():
+            layout.addLayout(self._path_row(label, path, filename))
+
+        layout.addLayout(self._path_row("Dumps", backend.config.get_dump_directory()))
+        layout.addLayout(self._path_row("Logs", backend.logs_directory()))
+
+        note = QLabel(
+            "Si hay varias copias, gana la primera de: ~/.config/aws-manager, la "
+            "carpeta del ejecutable, el directorio actual."
+        )
+        note.setObjectName("FieldHint")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+
+        buttons = QHBoxLayout()
+        buttons.addStretch(1)
+        close = QPushButton("Cerrar")
+        close.setObjectName("Primary")
+        close.setDefault(True)
+        close.clicked.connect(self.accept)
+        buttons.addWidget(close)
+        layout.addLayout(buttons)
+
+    def _path_row(self, label: str, path: Path | None, missing_name: str = "") -> QHBoxLayout:
+        row = QHBoxLayout()
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(12)
+
+        caption = QLabel(label)
+        caption.setObjectName("FieldLabel")
+        caption.setFixedWidth(160)
+
+        value = QLabel(str(path) if path else f"{missing_name} · no encontrado")
+        value.setObjectName("FieldValue" if path else "FieldValueMuted")
+        value.setWordWrap(True)
+        value.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+        row.addWidget(caption)
+        row.addWidget(value, 1)
+
+        if path is not None:
+            folder = path if path.is_dir() else path.parent
+            button = QPushButton("Abrir")
+            button.setObjectName("Ghost")
+            button.setCursor(Qt.CursorShape.PointingHandCursor)
+            button.clicked.connect(
+                lambda _=False, target=folder: QDesktopServices.openUrl(
+                    QUrl.fromLocalFile(str(target))
+                )
+            )
+            row.addWidget(button)
+        return row
+
+
+def confirm(
+    parent: QWidget | None,
+    title: str,
+    message: str,
+    accept_text: str,
+    informative: str = "",
+    destructive: bool = False,
+) -> bool:
+    box = QMessageBox(parent)
+    box.setWindowTitle(title)
+    box.setIcon(QMessageBox.Icon.NoIcon)
+    box.setText(message)
+    if informative:
+        box.setInformativeText(informative)
+    box.setTextFormat(Qt.TextFormat.PlainText)
+    accept = box.addButton(accept_text, QMessageBox.ButtonRole.AcceptRole)
+    accept.setObjectName("Danger" if destructive else "Primary")
+    box.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+    box.exec()
+    return box.clickedButton() is accept
