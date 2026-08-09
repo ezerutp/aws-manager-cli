@@ -2,30 +2,31 @@
 import subprocess
 import json
 import requests
-from typing import Optional
+from typing import Callable, Optional
 
 
 class SecurityGroupManager:
     """Manages AWS Security Group operations"""
-    
-    def __init__(self, config_manager):
+
+    def __init__(self, config_manager, on_output: Optional[Callable[[str], None]] = None):
         self.config = config_manager
+        self._out: Callable[[str], None] = on_output or print
     
     def get_current_public_ip(self) -> Optional[str]:
         """Get current public IP address"""
-        print("Obteniendo IP pública...")
+        self._out("Obteniendo IP pública...")
         
         try:
             response = requests.get('https://checkip.amazonaws.com', timeout=10)
             if response.status_code == 200:
                 ip = response.text.strip()
-                print(f"Tu IP pública: {ip}")
+                self._out(f"Tu IP pública: {ip}")
                 return ip
             else:
-                print("✗ Error al obtener IP pública.")
+                self._out("✗ Error al obtener IP pública.")
                 return None
         except requests.RequestException as e:
-            print(f"✗ Error al obtener IP pública: {e}")
+            self._out(f"✗ Error al obtener IP pública: {e}")
             return None
     
     def get_security_group_info(self, sg_id: str) -> Optional[dict]:
@@ -41,20 +42,20 @@ class SecurityGroupManager:
             )
             
             if result.returncode != 0:
-                print("✗ Error al obtener información del Security Group.")
+                self._out("✗ Error al obtener información del Security Group.")
                 return None
             
             sg_data = json.loads(result.stdout)
             return sg_data
             
         except subprocess.TimeoutExpired:
-            print("✗ Timeout al obtener Security Group.")
+            self._out("✗ Timeout al obtener Security Group.")
             return None
         except json.JSONDecodeError as e:
-            print(f"✗ Error al parsear respuesta: {e}")
+            self._out(f"✗ Error al parsear respuesta: {e}")
             return None
         except Exception as e:
-            print(f"✗ Error al obtener Security Group: {e}")
+            self._out(f"✗ Error al obtener Security Group: {e}")
             return None
     
     def find_existing_rules(self, sg_data: dict, current_ip: str, rule_description: str) -> tuple:
@@ -93,12 +94,12 @@ class SecurityGroupManager:
             return existing_rule_ip, ip_already_exists
             
         except Exception as e:
-            print(f"✗ Error al analizar reglas: {e}")
+            self._out(f"✗ Error al analizar reglas: {e}")
             return None, None
     
     def revoke_security_group_rule(self, sg_id: str, cidr: str) -> bool:
         """Revoke an ingress rule from security group"""
-        print(f"Action: Revocando regla antigua ({cidr})...")
+        self._out(f"Action: Revocando regla antigua ({cidr})...")
         
         try:
             result = subprocess.run(
@@ -112,19 +113,19 @@ class SecurityGroupManager:
             )
             
             if result.returncode == 0:
-                print("✓ Regla revocada.")
+                self._out("✓ Regla revocada.")
                 return True
             else:
-                print("⚠ No se pudo revocar la regla.")
+                self._out("⚠ No se pudo revocar la regla.")
                 return False
                 
         except Exception as e:
-            print(f"✗ Error al revocar regla: {e}")
+            self._out(f"✗ Error al revocar regla: {e}")
             return False
     
     def authorize_security_group_rule(self, sg_id: str, ip: str, description: str) -> bool:
         """Authorize an ingress rule in security group"""
-        print("Action: Autorizando nueva IP en SG...")
+        self._out("Action: Autorizando nueva IP en SG...")
         
         try:
             ip_permissions = json.dumps([{
@@ -146,23 +147,23 @@ class SecurityGroupManager:
             )
             
             if result.returncode == 0:
-                print("✓ Security Group actualizado.")
+                self._out("✓ Security Group actualizado.")
                 return True
             else:
-                print("⚠ No se pudo autorizar (puede ser que ya lo esté).")
+                self._out("⚠ No se pudo autorizar (puede ser que ya lo esté).")
                 return True  # Not a critical error
                 
         except Exception as e:
-            print(f"✗ Error al autorizar regla: {e}")
+            self._out(f"✗ Error al autorizar regla: {e}")
             return False
     
     def update_security_group(self, environment: dict) -> bool:
         """Update security group with current IP (idempotent)"""
-        print("\n=== Actualizando Security Group ===")
+        self._out("\n=== Actualizando Security Group ===")
         
         sg_id = environment.get('security_group_id')
         if not sg_id:
-            print("✗ Error: Security Group ID no encontrado en configuración.")
+            self._out("✗ Error: Security Group ID no encontrado en configuración.")
             return False
         
         rule_description = self.config.get_rule_description()
@@ -184,11 +185,11 @@ class SecurityGroupManager:
         
         # Check if update is needed
         if existing_rule_ip == f"{current_ip}/32":
-            print(f"Status: Regla de Security Group ya actualizada.")
+            self._out(f"Status: Regla de Security Group ya actualizada.")
             return True
         
         if ip_already_exists:
-            print(f"Status: IP ya autorizada en el SG (vía otra regla).")
+            self._out(f"Status: IP ya autorizada en el SG (vía otra regla).")
             return True
         
         # Revoke old rule if exists

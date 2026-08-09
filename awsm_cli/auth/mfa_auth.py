@@ -2,21 +2,49 @@
 import os
 import json
 import subprocess
-from typing import Optional, Dict
+from datetime import datetime, timezone
+from typing import Callable, Optional, Dict
 
 
 class AWSCredentials:
     """Container for AWS credentials with session token"""
-    
-    def __init__(self, access_key: str = "", secret_key: str = "", session_token: str = ""):
+
+    def __init__(self, access_key: str = "", secret_key: str = "", session_token: str = "",
+                 expiration: str = ""):
         self.access_key = access_key
         self.secret_key = secret_key
         self.session_token = session_token
-    
+        # `aws sts get-session-token` devuelve cuándo caduca la sesión. El menú lo
+        # ignoraba; una GUI puede mostrar cuánto falta.
+        self.expiration = expiration
+
     def is_valid(self) -> bool:
         """Check if credentials are valid (not empty)"""
         return bool(self.access_key and self.secret_key)
-    
+
+    def expires_at(self) -> Optional[datetime]:
+        """Parse the ISO-8601 expiration reported by STS, if there is one."""
+        if not self.expiration:
+            return None
+        try:
+            return datetime.fromisoformat(self.expiration.replace('Z', '+00:00'))
+        except ValueError:
+            return None
+
+    def seconds_left(self) -> Optional[float]:
+        """Seconds until the session expires, or None if it is unknown."""
+        moment = self.expires_at()
+        if moment is None:
+            return None
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=timezone.utc)
+        return (moment - datetime.now(timezone.utc)).total_seconds()
+
+    def is_expired(self) -> bool:
+        left = self.seconds_left()
+        return left is not None and left <= 0
+
+
     def apply_to_environment(self):
         """Apply credentials to environment variables"""
         os.environ['AWS_ACCESS_KEY_ID'] = self.access_key
@@ -34,8 +62,9 @@ class AWSCredentials:
 class MFAAuthenticator:
     """Handles MFA authentication for AWS"""
     
-    def __init__(self, config_manager):
+    def __init__(self, config_manager, on_output: Optional[Callable[[str], None]] = None):
         self.config = config_manager
+        self._out: Callable[[str], None] = on_output or print
         self.credentials: Optional[AWSCredentials] = None
     
     def setup_aws_credentials(self) -> bool:
@@ -45,7 +74,7 @@ class MFAAuthenticator:
         aws_secret = os.environ.get('AWS_SECRET_ACCESS_KEY')
         
         if aws_key and aws_secret:
-            print("✓ Credenciales AWS obtenidas de variables de entorno.")
+            self._out("✓ Credenciales AWS obtenidas de variables de entorno.")
             if not os.environ.get('AWS_DEFAULT_REGION'):
                 os.environ['AWS_DEFAULT_REGION'] = self.config.get_region()
             return True
@@ -58,12 +87,12 @@ class MFAAuthenticator:
             os.environ['AWS_ACCESS_KEY_ID'] = config_key
             os.environ['AWS_SECRET_ACCESS_KEY'] = config_secret
             os.environ['AWS_DEFAULT_REGION'] = self.config.get_region()
-            print("✓ Credenciales AWS cargadas desde configuración.")
+            self._out("✓ Credenciales AWS cargadas desde configuración.")
             return True
         
         # Try AWS CLI configured credentials
-        print("Credenciales AWS no encontradas en variables de entorno o configuración.")
-        print("Intentando usar credenciales configuradas en AWS CLI...")
+        self._out("Credenciales AWS no encontradas en variables de entorno o configuración.")
+        self._out("Intentando usar credenciales configuradas en AWS CLI...")
         
         try:
             result = subprocess.run(
@@ -72,20 +101,20 @@ class MFAAuthenticator:
                 timeout=10
             )
             if result.returncode == 0:
-                print("✓ Credenciales AWS detectadas en CLI.")
+                self._out("✓ Credenciales AWS detectadas en CLI.")
                 return True
         except Exception as e:
             pass
         
-        print("✗ Error: No se encontraron credenciales AWS.")
-        print("  Configure las variables de entorno:")
-        print("    export AWS_ACCESS_KEY_ID='your-access-key'")
-        print("    export AWS_SECRET_ACCESS_KEY='your-secret-key'")
+        self._out("✗ Error: No se encontraron credenciales AWS.")
+        self._out("  Configure las variables de entorno:")
+        self._out("    export AWS_ACCESS_KEY_ID='your-access-key'")
+        self._out("    export AWS_SECRET_ACCESS_KEY='your-secret-key'")
         return False
     
     def get_mfa_device(self) -> Optional[str]:
         """Discover MFA device ARN"""
-        print("Identificando dispositivo MFA...")
+        self._out("Identificando dispositivo MFA...")
         
         try:
             result = subprocess.run(
@@ -97,47 +126,54 @@ class MFAAuthenticator:
             )
             
             if result.returncode != 0:
-                print("✗ Error al obtener dispositivo MFA.")
+                self._out("✗ Error al obtener dispositivo MFA.")
                 return None
             
             device_arn = result.stdout.strip()
             
             if not device_arn or device_arn == 'None':
-                print("✗ Error: No se encontró dispositivo MFA.")
+                self._out("✗ Error: No se encontró dispositivo MFA.")
                 return None
             
-            print(f"✓ Dispositivo MFA encontrado: {device_arn}")
+            self._out(f"✓ Dispositivo MFA encontrado: {device_arn}")
             return device_arn
             
         except subprocess.TimeoutExpired:
-            print("✗ Timeout al obtener dispositivo MFA.")
+            self._out("✗ Timeout al obtener dispositivo MFA.")
             return None
         except Exception as e:
-            print(f"✗ Error al obtener dispositivo MFA: {e}")
+            self._out(f"✗ Error al obtener dispositivo MFA: {e}")
             return None
     
-    def authenticate_with_mfa(self) -> AWSCredentials:
-        """Perform MFA authentication and return temporary credentials"""
+    def authenticate_with_mfa(self, mfa_code: Optional[str] = None) -> AWSCredentials:
+        """Perform MFA authentication and return temporary credentials.
+
+        Con `mfa_code` no se lee nada de stdin, que es lo que permite usar esto
+        desde una GUI. Sin él se mantiene el prompt interactivo del menú.
+        """
         credentials = AWSCredentials()
-        
+
         # Get MFA device
         mfa_device = self.get_mfa_device()
         if not mfa_device:
             return credentials
-        
-        # Display MFA prompt
-        from ..ui.menu import MenuManager
-        MenuManager.display_section_header("MFA Authentication Required")
-        
-        # Request MFA code
-        mfa_code = input("\nIngresa tu código MFA de 6 dígitos: ").strip()
-        
+
+        if mfa_code is None:
+            # Display MFA prompt
+            from ..ui.menu import MenuManager
+            MenuManager.display_section_header("MFA Authentication Required")
+
+            # Request MFA code
+            mfa_code = input("\nIngresa tu código MFA de 6 dígitos: ").strip()
+        else:
+            mfa_code = mfa_code.strip()
+
         # Validate input
         if len(mfa_code) != 6 or not mfa_code.isdigit():
-            print("✗ Error: El código MFA debe ser 6 dígitos.")
+            self._out("✗ Error: El código MFA debe ser 6 dígitos.")
             return credentials
         
-        print("\nAutenticando con MFA...")
+        self._out("\nAutenticando con MFA...")
         
         try:
             # Get session token
@@ -152,7 +188,7 @@ class MFAAuthenticator:
             )
             
             if result.returncode != 0:
-                print("✗ Error: Autenticación MFA fallida. Verifica el código.")
+                self._out("✗ Error: Autenticación MFA fallida. Verifica el código.")
                 return credentials
             
             # Parse response
@@ -160,46 +196,47 @@ class MFAAuthenticator:
             credentials.access_key = response['Credentials']['AccessKeyId']
             credentials.secret_key = response['Credentials']['SecretAccessKey']
             credentials.session_token = response['Credentials']['SessionToken']
-            
-            print("✓ Sesión MFA establecida.")
+            credentials.expiration = str(response['Credentials'].get('Expiration', ''))
+
+            self._out("✓ Sesión MFA establecida.")
             return credentials
             
         except subprocess.TimeoutExpired:
-            print("✗ Timeout durante autenticación MFA.")
+            self._out("✗ Timeout durante autenticación MFA.")
             return credentials
         except json.JSONDecodeError as e:
-            print(f"✗ Error al parsear respuesta MFA: {e}")
+            self._out(f"✗ Error al parsear respuesta MFA: {e}")
             return credentials
         except Exception as e:
-            print(f"✗ Error durante autenticación MFA: {e}")
+            self._out(f"✗ Error durante autenticación MFA: {e}")
             return credentials
     
-    def perform_authentication(self) -> bool:
+    def perform_authentication(self, mfa_code: Optional[str] = None) -> bool:
         """Main authentication flow"""
         # Setup basic credentials first
         if not self.setup_aws_credentials():
             return False
-        
+
         # If MFA is not required, we're done
         if not self.config.is_mfa_required():
-            print("MFA no requerido según configuración.")
+            self._out("MFA no requerido según configuración.")
             return True
-        
+
         # Perform MFA authentication
-        print("\n=== Autenticación MFA ===")
-        self.credentials = self.authenticate_with_mfa()
-        
+        self._out("\n=== Autenticación MFA ===")
+        self.credentials = self.authenticate_with_mfa(mfa_code)
+
         if not self.credentials.is_valid():
-            print("✗ Error: Autenticación MFA fallida.")
+            self._out("✗ Error: Autenticación MFA fallida.")
             return False
         
         # Apply credentials to environment
         self.credentials.apply_to_environment()
-        print("✓ MFA autenticado. Credenciales válidas para toda la sesión.")
+        self._out("✓ MFA autenticado. Credenciales válidas para toda la sesión.")
         
         return True
     
     def cleanup(self):
         """Clean up session token"""
         AWSCredentials.clear_session_token()
-        print("Token de sesión temporal eliminado.")
+        self._out("Token de sesión temporal eliminado.")
