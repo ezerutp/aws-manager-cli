@@ -122,7 +122,7 @@ la configuración de la siguiente.
 | --- | --- |
 | **MFA** (modal) | 6 dígitos, validación en vivo, error del CLI, y *Solo local* para seguir sin MFA |
 | **Detalle de entorno** | instancia, DNS, SG, tu IP y su estado; SSH, dump, autorizar |
-| **Descargar dump** | los dumps del servidor con nombre, tamaño y fecha, y barra de progreso |
+| **Descargar dump** | los dumps del servidor con nombre, tamaño y fecha, un botón por fila, confirmación previa y barra de progreso |
 | **Base de datos** | elegir base, abrir MySQL interactivo, y recrear desde un dump: lista filtrable por entorno o un archivo de cualquier carpeta |
 | **Historial** | los logs de `OperationsLogger`, que ya son JSON por línea, en tabla |
 | **Rutas** (ⓘ) | qué archivos se usan y dónde, con botón para abrir cada carpeta |
