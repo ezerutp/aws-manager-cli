@@ -3,36 +3,42 @@ import gzip
 import subprocess
 import time
 from pathlib import Path
-from typing import List
+from typing import Callable, List, Optional
 from ..utils import OperationsLogger
+from .dump_index import DumpIndex
 
 
 class DatabaseOperations:
     """Handles local database recreation operations"""
 
-    def __init__(self, config_manager):
+    def __init__(self, config_manager, on_output: Optional[Callable[[str], None]] = None):
         self.config = config_manager
-        self.logger = OperationsLogger()
+        self._out: Callable[[str], None] = on_output or print
+        self.logger = OperationsLogger(on_output=on_output)
 
     def get_sql_files_in_directory(self, directory: str = ".") -> List[Path]:
-        """Get all SQL and SQL.GZ files from directory, prioritizing db_dump."""
-        try:
-            search_paths = []
+        """Get all SQL and SQL.GZ files from directory, prioritizing db_dump.
 
+        La carpeta de dumps se recorre en profundidad porque cada descarga va a
+        una subcarpeta por entorno; el directorio actual se mira plano, que es lo
+        que espera quien ejecuta el programa parado sobre un dump suelto.
+        """
+        try:
             if directory == ".":
-                dump_dir = self.config.get_dump_directory()
-                search_paths = [dump_dir, Path(".")]
+                search_paths = [(self.config.get_dump_directory(), True), (Path("."), False)]
             else:
-                search_paths = [Path(directory)]
+                search_paths = [(Path(directory), True)]
 
             sql_files = []
             seen = set()
 
-            for path in search_paths:
+            for path, recursive in search_paths:
                 if not path.exists() or not path.is_dir():
                     continue
 
-                for file_path in sorted(list(path.glob("*.sql")) + list(path.glob("*.sql.gz"))):
+                finder = path.rglob if recursive else path.glob
+                found = list(finder("*.sql")) + list(finder("*.sql.gz"))
+                for file_path in sorted(found):
                     resolved = str(file_path.resolve())
                     if resolved not in seen:
                         seen.add(resolved)
@@ -40,7 +46,7 @@ class DatabaseOperations:
 
             return sql_files
         except Exception as e:
-            print(f"✗ Error al listar archivos SQL: {e}")
+            self._out(f"✗ Error al listar archivos SQL: {e}")
             return []
 
     def execute_mysql_command(self, command: str, database: str = "") -> bool:
@@ -68,10 +74,10 @@ class DatabaseOperations:
             )
             return result.returncode == 0
         except subprocess.TimeoutExpired:
-            print("✗ Timeout al ejecutar comando MySQL.")
+            self._out("✗ Timeout al ejecutar comando MySQL.")
             return False
         except Exception as e:
-            print(f"✗ Error al ejecutar MySQL: {e}")
+            self._out(f"✗ Error al ejecutar MySQL: {e}")
             return False
 
     def connect_to_local_database(self, database: str) -> bool:
@@ -86,36 +92,43 @@ class DatabaseOperations:
             database
         ]
 
-        print("\n=== Conexión a BD Local ===")
-        print(f"Base de datos: {database}")
-        print("Ingresa tus consultas SQL manuales.")
-        print("Escribe 'exit' o 'quit' para volver al menú.")
+        self._out("\n=== Conexión a BD Local ===")
+        self._out(f"Base de datos: {database}")
+        self._out("Ingresa tus consultas SQL manuales.")
+        self._out("Escribe 'exit' o 'quit' para volver al menú.")
 
         try:
             result = subprocess.run(cmd)
             if result.returncode != 0:
-                print("✗ No se pudo abrir la sesión de MySQL.")
+                self._out("✗ No se pudo abrir la sesión de MySQL.")
                 return False
             return True
         except FileNotFoundError:
-            print("✗ MySQL client no está instalado o no está en PATH.")
+            self._out("✗ MySQL client no está instalado o no está en PATH.")
             return False
         except KeyboardInterrupt:
-            print("\n✗ Sesión de MySQL interrumpida.")
+            self._out("\n✗ Sesión de MySQL interrumpida.")
             return False
         except Exception as e:
-            print(f"✗ Error al conectar a MySQL local: {e}")
+            self._out(f"✗ Error al conectar a MySQL local: {e}")
             return False
 
-    def import_sql_file(self, database: str, sql_file: str) -> bool:
-        """Import SQL/SQL.GZ file into database using streaming with progress"""
+    def import_sql_file(self, database: str, sql_file: str,
+                        on_progress: Optional[Callable[[Optional[float], float, float], None]] = None
+                        ) -> bool:
+        """Import SQL/SQL.GZ file into database using streaming with progress.
+
+        `on_progress` recibe (porcentaje, MB enviados, MB/s). El porcentaje es None
+        para `.sql.gz`, donde no se conoce el tamaño descomprimido. Sin callback se
+        mantiene la salida con `\\r` que espera la terminal.
+        """
         mysql_user = self.config.get_mysql_user()
         mysql_protocol = self.config.get_mysql_protocol()
         file_path = Path(sql_file)
 
         try:
             if not file_path.exists():
-                print(f"✗ Archivo no encontrado: {sql_file}")
+                self._out(f"✗ Archivo no encontrado: {sql_file}")
                 return False
 
             is_gz_file = file_path.suffix.lower() == '.gz'
@@ -155,9 +168,11 @@ class DatabaseOperations:
                     if now - last_update >= 1:
                         elapsed = max(now - start_time, 0.001)
                         speed_mb_s = (bytes_sent / (1024 * 1024)) / elapsed
+                        percent = (bytes_sent / total_bytes) * 100 if total_bytes else None
 
-                        if total_bytes:
-                            percent = (bytes_sent / total_bytes) * 100
+                        if on_progress is not None:
+                            on_progress(percent, bytes_sent / (1024 * 1024), speed_mb_s)
+                        elif percent is not None:
                             print(
                                 f"\rProgreso import: {percent:6.2f}% "
                                 f"({bytes_sent / (1024 * 1024):.1f} MB / {total_bytes / (1024 * 1024):.1f} MB) "
@@ -186,7 +201,13 @@ class DatabaseOperations:
             total_time = max(time.time() - start_time, 0.001)
             final_speed = (bytes_sent / (1024 * 1024)) / total_time
 
-            if total_bytes:
+            if on_progress is not None:
+                on_progress(
+                    100.0 if total_bytes else None,
+                    bytes_sent / (1024 * 1024),
+                    final_speed,
+                )
+            elif total_bytes:
                 print(
                     f"\rProgreso import: 100.00% ({bytes_sent / (1024 * 1024):.1f} MB / {total_bytes / (1024 * 1024):.1f} MB) "
                     f"- {final_speed:.2f} MB/s"
@@ -199,21 +220,42 @@ class DatabaseOperations:
 
             if return_code != 0:
                 if stderr_output:
-                    print(f"✗ MySQL reportó error: {stderr_output}")
+                    self._out(f"✗ MySQL reportó error: {stderr_output}")
                 return False
 
-            print(f"Tiempo total de importación: {total_time:.1f} segundos")
+            self._out(f"Tiempo total de importación: {total_time:.1f} segundos")
             return True
 
         except BrokenPipeError:
-            print("\n✗ Se perdió la conexión con el proceso MySQL durante la importación.")
+            self._out("\n✗ Se perdió la conexión con el proceso MySQL durante la importación.")
             return False
         except FileNotFoundError:
-            print(f"✗ Archivo no encontrado: {sql_file}")
+            self._out(f"✗ Archivo no encontrado: {sql_file}")
             return False
         except Exception as e:
-            print(f"✗ Error al importar archivo SQL: {e}")
+            self._out(f"✗ Error al importar archivo SQL: {e}")
             return False
+
+    def _environment_for_dump(self, sql_file: str) -> str:
+        """De qué entorno es el dump que se está importando.
+
+        Primero el índice, que lo sabe con certeza. Solo si el archivo no está
+        ahí (dumps viejos, o uno elegido de otra carpeta) se cae al viejo truco
+        de mirar el nombre.
+        """
+        try:
+            index = DumpIndex(self.config.get_dump_directory(), on_output=self._out)
+            environment_ids = [
+                env_type.get('id', '')
+                for parent in self.config.get_all_environments()
+                for env_type in parent.get('types', [])
+            ]
+            found = index.environment_for(Path(sql_file), environment_ids)
+            if found:
+                return found
+        except Exception:
+            pass
+        return self._extract_environment_from_filename(Path(sql_file).name)
 
     def _extract_environment_from_filename(self, filename: str) -> str:
         """Extract environment name from dump filename"""
@@ -256,37 +298,39 @@ class DatabaseOperations:
             pass
         return 0.0
 
-    def recreate_database(self, db_name: str, sql_file: str) -> bool:
+    def recreate_database(self, db_name: str, sql_file: str,
+                          on_progress: Optional[Callable[[Optional[float], float, float], None]] = None
+                          ) -> bool:
         """Recreate database with SQL file"""
-        print("\n=== Recreando Base de Datos ===")
+        self._out("\n=== Recreando Base de Datos ===")
         
         # Start timing
         start_time = time.time()
 
         if not Path(sql_file).exists():
-            print(f"✗ Error: Archivo no existe: {sql_file}")
+            self._out(f"✗ Error: Archivo no existe: {sql_file}")
             return False
 
-        print(f"Base de datos: {db_name}")
-        print(f"Archivo SQL:   {sql_file}")
+        self._out(f"Base de datos: {db_name}")
+        self._out(f"Archivo SQL:   {sql_file}")
 
-        print("\nEliminando base de datos existente...")
+        self._out("\nEliminando base de datos existente...")
         if not self.execute_mysql_command(f"DROP DATABASE IF EXISTS {db_name};"):
-            print("⚠ Advertencia: No se pudo eliminar la base de datos (puede no existir).")
+            self._out("⚠ Advertencia: No se pudo eliminar la base de datos (puede no existir).")
 
-        print("Creando base de datos...")
+        self._out("Creando base de datos...")
         if not self.execute_mysql_command(f"CREATE DATABASE {db_name};"):
-            print("✗ Error: No se pudo crear la base de datos.")
+            self._out("✗ Error: No se pudo crear la base de datos.")
             return False
 
-        print("✓ Base de datos creada.")
-        print("Importando datos desde archivo SQL...")
+        self._out("✓ Base de datos creada.")
+        self._out("Importando datos desde archivo SQL...")
 
-        if not self.import_sql_file(db_name, sql_file):
-            print("✗ Error al importar datos.")
+        if not self.import_sql_file(db_name, sql_file, on_progress=on_progress):
+            self._out("✗ Error al importar datos.")
             return False
 
-        print(f"✓ Base de datos '{db_name}' recreada exitosamente.")
+        self._out(f"✓ Base de datos '{db_name}' recreada exitosamente.")
         
         # Calculate total time
         end_time = time.time()
@@ -294,7 +338,7 @@ class DatabaseOperations:
         
         # Extract environment and file info
         dump_filename = Path(sql_file).name
-        environment = self._extract_environment_from_filename(dump_filename)
+        environment = self._environment_for_dump(sql_file)
         file_size_mb = self._get_file_size_mb(sql_file)
         
         # Log the operation
