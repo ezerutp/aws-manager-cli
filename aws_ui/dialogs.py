@@ -169,20 +169,29 @@ class RemoteDumpDialog(QDialog):
         self.hint.setObjectName("FieldHint")
         layout.addWidget(self.hint)
 
+        # Sin botón de descarga acá abajo: la acción vive en cada fila, y repetirla
+        # obligaba a mirar dos lugares para saber qué se iba a bajar.
         buttons = QHBoxLayout()
         buttons.addStretch(1)
-        cancel = QPushButton("Cancelar")
+        cancel = QPushButton("Cerrar")
+        cancel.setDefault(True)
         cancel.clicked.connect(self.reject)
-        self.download = QPushButton("Descargar")
-        self.download.setObjectName("Primary")
-        self.download.setDefault(True)
-        self.download.setEnabled(bool(dumps))
-        self.download.clicked.connect(self._accept_if_selected)
         buttons.addWidget(cancel)
-        buttons.addWidget(self.download)
         layout.addLayout(buttons)
 
         self._on_selection_changed()
+
+    def keyPressEvent(self, event) -> None:
+        """Enter sobre la lista baja la fila elegida.
+
+        Antes lo hacía el botón `Descargar` por ser el `default` del diálogo; sin
+        ese botón hay que atender la tecla, o el teclado se queda sin la acción.
+        """
+        if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                and self.table.hasFocus()):
+            self._accept_if_selected()
+            return
+        super().keyPressEvent(event)
 
     def _size_actions_column(self) -> None:
         """Darle a la columna de botones el ancho y alto que el botón necesita.
@@ -234,10 +243,12 @@ class RemoteDumpDialog(QDialog):
 
     def _on_selection_changed(self) -> None:
         chosen = self.selected()
-        self.download.setEnabled(chosen is not None)
+        if chosen is None:
+            self.hint.setText("No hay dumps en el servidor de este entorno.")
+            return
         self.hint.setText(
-            f"Se descargará: {chosen.name} ({chosen.size})" if chosen else
-            "Elegí un dump de la lista."
+            f"{chosen.name} ({chosen.size}) — usá su botón Descargar, "
+            "doble clic o Enter."
         )
 
     def _accept_row(self, row: int) -> None:

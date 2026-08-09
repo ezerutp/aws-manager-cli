@@ -16,7 +16,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     from PySide6.QtCore import QPoint, Qt
-    from PySide6.QtWidgets import QApplication, QLineEdit, QVBoxLayout, QWidget
+    from PySide6.QtTest import QTest
+    from PySide6.QtWidgets import (
+        QApplication,
+        QLineEdit,
+        QPushButton,
+        QVBoxLayout,
+        QWidget,
+    )
 
     from aws_ui.core import Backend, RemoteDump
     from aws_ui.dialogs import RemoteDumpDialog
@@ -177,13 +184,34 @@ class RemoteDumpDialogTests(unittest.TestCase):
     def test_it_opens_with_the_first_dump_already_chosen(self):
         dialog = self._dialog()
         self.assertEqual(dialog.selected().name, "dump_0.sql.gz")
-        self.assertTrue(dialog.download.isEnabled())
 
     def test_choosing_a_row_changes_what_will_be_downloaded(self):
         dialog = self._dialog()
         dialog.table.selectRow(2)
         self.assertEqual(dialog.selected().name, "dump_2.sql.gz")
         self.assertIn("dump_2.sql.gz", dialog.hint.text())
+
+    def test_the_only_download_button_is_the_one_in_the_row(self):
+        """Un botón abajo repetía la acción de la fila y era una fuente más de
+        verdad sobre qué se iba a bajar."""
+        dialog = self._dialog()
+        labels = [
+            button.text()
+            for button in dialog.findChildren(QPushButton)
+            if button not in dialog._row_buttons
+        ]
+        self.assertEqual(labels, ["Cerrar"])
+
+    def test_enter_downloads_the_selected_row(self):
+        """Sin el botón `default`, la tecla tiene que hacer el trabajo."""
+        dialog = self._dialog()
+        dialog.show()
+        dialog.table.setFocus()
+        dialog.table.selectRow(1)
+        self.app.processEvents()
+        QTest.keyClick(dialog.table, Qt.Key.Key_Return)
+        self.assertEqual(dialog.result(), RemoteDumpDialog.DialogCode.Accepted)
+        self.assertEqual(dialog.selected().name, "dump_1.sql.gz")
 
     def test_every_row_has_its_own_download_button(self):
         dialog = self._dialog()
@@ -214,7 +242,8 @@ class RemoteDumpDialogTests(unittest.TestCase):
     def test_an_empty_listing_leaves_nothing_to_download(self):
         dialog = self._dialog(count=0)
         self.assertIsNone(dialog.selected())
-        self.assertFalse(dialog.download.isEnabled())
+        self.assertEqual(dialog._row_buttons, [])
+        self.assertIn("No hay dumps", dialog.hint.text())
 
 
 @unittest.skipUnless(HAS_QT, "PySide6 hace falta para las pruebas de widgets")

@@ -112,10 +112,11 @@ recuerde. Si hay una operación en curso, se avisa antes de salir.
 
 ### Descargar un dump
 
-`Descargar dump` lista lo que hay en el servidor del entorno. La fila elegida se
-pinta con el color de acento, y cada fila trae además su propio botón
-**Descargar**, que baja *esa* fila sin importar cuál esté seleccionada. También
-sirve el doble clic.
+`Descargar dump` lista lo que hay en el servidor del entorno. Cada fila trae su
+propio botón **Descargar**, que baja *esa* fila sin importar cuál esté
+seleccionada; también sirven el doble clic y Enter sobre la fila elegida, que se
+pinta con el color de acento. No hay un botón de descarga abajo: repetía la
+acción y obligaba a mirar dos lugares para saber qué se iba a bajar.
 
 Antes de empezar se pide confirmación, con el tamaño y la ruta de destino: una
 descarga puede ser de varios GB y tarda. Si el archivo ya existe, la
