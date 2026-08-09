@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -362,6 +363,29 @@ class WindowTests(unittest.TestCase):
         self.window.clear_chosen_dump()
         self.assertTrue(self.window.chosen_row.isHidden())
         self.assertIsNone(self.window._dump_to_recreate())
+
+    def _download_after_picking(self, answer: bool) -> list:
+        """Elegir el primer dump del diálogo y contestar `answer` a la confirmación."""
+        env_type = self.window.snapshot.environments[0].types[0]
+        dumps = (RemoteDump(name="dump_0.sql.gz", size="120 MB", date="2026-08-08"),)
+        started: list = []
+        with mock.patch.object(
+            RemoteDumpDialog, "exec",
+            return_value=RemoteDumpDialog.DialogCode.Accepted,
+        ), mock.patch("aws_ui.window.confirm", return_value=answer) as asked, \
+                mock.patch.object(
+                    self.window, "_run_with_progress",
+                    side_effect=lambda *a, **k: started.append(a)):
+            self.window._pick_dump(env_type, dumps)
+        self.assertTrue(asked.called, "no se pidió confirmación")
+        return started
+
+    def test_a_download_is_confirmed_before_starting(self):
+        """Bajar un dump puede tardar y son varios GB: primero se pregunta."""
+        self.assertEqual(self._download_after_picking(answer=False), [])
+
+    def test_confirming_starts_the_download(self):
+        self.assertEqual(len(self._download_after_picking(answer=True)), 1)
 
     def test_recreate_is_disabled_when_there_is_nothing_to_import(self):
         self.window.select_local("database")
