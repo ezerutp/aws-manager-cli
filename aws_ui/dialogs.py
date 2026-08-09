@@ -10,6 +10,7 @@ from PySide6.QtGui import QDesktopServices, QIntValidator
 from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -19,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from .core import Backend, RemoteDump, Session
+from .theme import CELL_PADDING_H, CELL_PADDING_V
 from .widgets import data_table, set_table_row
 
 
@@ -116,6 +118,9 @@ class RemoteDumpDialog(QDialog):
     escribir el nombre del archivo a mano ni adivinar cuál es el último.
     """
 
+    # Márgenes alrededor del botón de cada fila: izq, arriba, der, abajo.
+    ACTION_MARGINS = (6, 3, 8, 3)
+
     def __init__(
         self,
         dumps: Sequence[RemoteDump],
@@ -125,7 +130,7 @@ class RemoteDumpDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Descargar dump")
         self.setModal(True)
-        self.setMinimumSize(620, 380)
+        self.setMinimumSize(680, 440)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 22, 24, 20)
@@ -139,17 +144,30 @@ class RemoteDumpDialog(QDialog):
         subtitle.setObjectName("FieldHint")
         layout.addWidget(subtitle)
 
-        self.table = data_table(["ARCHIVO", "TAMAÑO", "FECHA"], right_aligned=(1, 2))
+        self.table = data_table(
+            ["ARCHIVO", "TAMAÑO", "FECHA", ""], right_aligned=(1, 2)
+        )
         self.table.setRowCount(len(dumps))
+        self._row_buttons: list[QPushButton] = []
         for row, dump in enumerate(dumps):
             set_table_row(self.table, row, (dump.name, dump.size, dump.date),
                           right_aligned=(1, 2))
+            # Un botón por fila: no hace falta descubrir que la fila se
+            # selecciona para poder bajar el dump que se está mirando.
+            self.table.setCellWidget(row, 3, self._row_button(row))
+
+        self._size_actions_column()
 
         self._dumps = list(dumps)
         if dumps:
             self.table.selectRow(0)
         self.table.doubleClicked.connect(lambda _: self._accept_if_selected())
+        self.table.itemSelectionChanged.connect(self._on_selection_changed)
         layout.addWidget(self.table, 1)
+
+        self.hint = QLabel("")
+        self.hint.setObjectName("FieldHint")
+        layout.addWidget(self.hint)
 
         buttons = QHBoxLayout()
         buttons.addStretch(1)
@@ -164,11 +182,69 @@ class RemoteDumpDialog(QDialog):
         buttons.addWidget(self.download)
         layout.addLayout(buttons)
 
+        self._on_selection_changed()
+
+    def _size_actions_column(self) -> None:
+        """Darle a la columna de botones el ancho y alto que el botón necesita.
+
+        `ResizeToContents` mide los items de la tabla, no los widgets de celda:
+        la columna quedaría en cero y el botón, recortado. El tamaño se pide
+        después de `ensurePolished()`, porque el padding sale de la hoja de
+        estilos y antes de aplicarla el botón se mide más chico de lo que es.
+        """
+        if not self._row_buttons:
+            return
+
+        for button in self._row_buttons:
+            button.ensurePolished()
+        hints = [button.sizeHint() for button in self._row_buttons]
+        left, top, right, bottom = self.ACTION_MARGINS
+        # Qt le descuenta a la celda el padding del item, así que el botón se
+        # quedaría corto si la columna midiera solo el botón más sus márgenes.
+        width = (max(hint.width() for hint in hints) + left + right
+                 + 2 * CELL_PADDING_H)
+        height = (max(hint.height() for hint in hints) + top + bottom
+                  + 2 * CELL_PADDING_V)
+
+        header = self.table.horizontalHeader()
+        header.setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(3, width)
+        for row in range(self.table.rowCount()):
+            self.table.setRowHeight(row, height)
+
+    def _row_button(self, row: int) -> QWidget:
+        """El botón de una fila, dentro de un contenedor que le da aire."""
+        button = QPushButton("Descargar")
+        button.setObjectName("RowAction")
+        button.setCursor(Qt.CursorShape.PointingHandCursor)
+        button.clicked.connect(lambda _=False, index=row: self._accept_row(index))
+        self._row_buttons.append(button)
+
+        holder = QWidget()
+        holder_layout = QHBoxLayout(holder)
+        holder_layout.setContentsMargins(*self.ACTION_MARGINS)
+        holder_layout.addWidget(button)
+        return holder
+
     def selected(self) -> RemoteDump | None:
         row = self.table.currentRow()
         if 0 <= row < len(self._dumps):
             return self._dumps[row]
         return None
+
+    def _on_selection_changed(self) -> None:
+        chosen = self.selected()
+        self.download.setEnabled(chosen is not None)
+        self.hint.setText(
+            f"Se descargará: {chosen.name} ({chosen.size})" if chosen else
+            "Elegí un dump de la lista."
+        )
+
+    def _accept_row(self, row: int) -> None:
+        """Bajar el dump de esa fila, sin depender de cuál esté seleccionada."""
+        if 0 <= row < len(self._dumps):
+            self.table.selectRow(row)
+            self.accept()
 
     def _accept_if_selected(self) -> None:
         if self.selected() is not None:
