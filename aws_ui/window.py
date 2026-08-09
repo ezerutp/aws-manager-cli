@@ -236,6 +236,13 @@ class MainWindow(QMainWindow):
         self.footer = QLabel("")
         self.footer.setObjectName("FooterText")
         layout.addWidget(self.footer)
+
+        # El encabezado de arriba dice qué versión de la interfaz es esta; acá va
+        # la del núcleo, que se instala aparte y puede no coincidir.
+        self.core_label = QLabel("")
+        self.core_label.setObjectName("FooterText")
+        self.core_label.setWordWrap(True)
+        layout.addWidget(self.core_label)
         return sidebar
 
     def _build_detail(self) -> QWidget:
@@ -630,6 +637,10 @@ class MainWindow(QMainWindow):
             if self.snapshot.loaded
             else "sin configuración"
         )
+
+        core = self.backend.core_status()
+        self.core_label.setText(f"núcleo {core.label}")
+        self.core_label.setToolTip(core.tooltip)
 
     def _sync_notice(self) -> None:
         session = self.snapshot.session

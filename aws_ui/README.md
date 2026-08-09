@@ -55,6 +55,21 @@ UI, con confirmación y feedback.
 Sin sesión MFA válida, las acciones remotas quedan deshabilitadas con el motivo a
 la vista; las operaciones locales siguen disponibles, igual que `--local`.
 
+### Qué núcleo está corriendo
+
+Abajo a la izquierda, y también en el pie de la ventana de configuración, se lee
+el núcleo contra el que corre la interfaz:
+
+```
+núcleo awsm_cli 2.1.0 · listo
+```
+
+El encabezado de arriba (`Phoenix v2.1.0`) es la versión de *la interfaz*. Esta
+otra es la del paquete `awsm_cli`, que se instala aparte y puede no coincidir —
+por ejemplo si actualizaste la interfaz pero no el binario del CLI. El estado es
+`listo`, `sin entornos` o `sin configuración`, y el tooltip dice de qué archivos
+salió la configuración.
+
 ### Configuración desde la interfaz
 
 El engranaje (`Ctrl+,`) abre la configuración completa, en cuatro pestañas:
@@ -112,10 +127,11 @@ recuerde. Si hay una operación en curso, se avisa antes de salir.
 
 ### Descargar un dump
 
-`Descargar dump` lista lo que hay en el servidor del entorno. La fila elegida se
-pinta con el color de acento, y cada fila trae además su propio botón
-**Descargar**, que baja *esa* fila sin importar cuál esté seleccionada. También
-sirve el doble clic.
+`Descargar dump` lista lo que hay en el servidor del entorno. Cada fila trae su
+propio botón **Descargar**, que baja *esa* fila sin importar cuál esté
+seleccionada; también sirven el doble clic y Enter sobre la fila elegida, que se
+pinta con el color de acento. No hay un botón de descarga abajo: repetía la
+acción y obligaba a mirar dos lugares para saber qué se iba a bajar.
 
 Antes de empezar se pide confirmación, con el tamaño y la ruta de destino: una
 descarga puede ser de varios GB y tarda. Si el archivo ya existe, la

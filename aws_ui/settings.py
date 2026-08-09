@@ -261,6 +261,15 @@ class SettingsDialog(QDialog):
         buttons = QHBoxLayout()
         buttons.setContentsMargins(0, 0, 0, 0)
         buttons.setSpacing(8)
+
+        # Qué núcleo está editando esta ventana. Es lo mismo que muestra la barra
+        # de estado, acá porque esto es lo que escribe la configuración.
+        core = self.backend.core_status()
+        self.core_label = QLabel(f"núcleo {core.label}")
+        self.core_label.setObjectName("FieldHint")
+        self.core_label.setToolTip(core.tooltip)
+        buttons.addWidget(self.core_label)
+
         buttons.addStretch(1)
         close = QPushButton("Cerrar")
         close.clicked.connect(self._close_if_saved)

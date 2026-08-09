@@ -26,6 +26,7 @@ from aws_ui.core import (  # noqa: E402
     format_size,
     terminal_command,
 )
+from awsm_cli import __version__ as awsm_version  # noqa: E402
 from awsm_cli.auth.mfa_auth import AWSCredentials  # noqa: E402
 from awsm_cli.config import ConfigManager  # noqa: E402
 
@@ -273,6 +274,25 @@ class BackendTests(unittest.TestCase):
             ["example_one_prod", "example_one_qa"],
         )
         self.assertEqual(snapshot.type_count, 2)
+
+    def test_the_core_reports_its_name_version_and_state(self):
+        self.backend.load(self.config_path, self.environments_path)
+        status = self.backend.core_status()
+        self.assertEqual(status.name, "awsm_cli")
+        self.assertEqual(status.version, awsm_version)
+        self.assertEqual(status.state, "ok")
+        self.assertTrue(status.healthy)
+        self.assertIn(awsm_version, status.label)
+        self.assertIn("listo", status.label)
+        # El tooltip dice de dónde salió cada archivo, que es la pregunta que
+        # sigue cuando la versión no es la que uno esperaba.
+        self.assertIn(str(self.config_path), status.detail)
+
+    def test_an_unloaded_core_says_so_instead_of_looking_healthy(self):
+        status = self.backend.core_status()
+        self.assertEqual(status.state, "sin-configuracion")
+        self.assertFalse(status.healthy)
+        self.assertIn("sin configuración", status.label)
 
     def test_output_goes_to_the_sink_instead_of_stdout(self):
         self.backend.load(self.config_path, self.environments_path)

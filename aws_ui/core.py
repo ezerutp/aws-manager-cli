@@ -257,6 +257,44 @@ class HistoryEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class CoreStatus:
+    """Qué núcleo está usando la interfaz y cómo lo encontró.
+
+    La ventana lleva su propio nombre y versión arriba, que son los de `aws_ui`.
+    Esto es lo otro: el paquete `awsm_cli` contra el que se está corriendo. Son
+    dos piezas que se instalan por separado, así que conviene poder leer cuál se
+    cargó sin abrir una terminal.
+    """
+
+    name: str
+    version: str
+    codename: str
+    state: str          # "ok" | "sin-entornos" | "sin-configuracion"
+    detail: str = ""    # de dónde salió la configuración, para el tooltip
+
+    STATE_LABELS = {
+        "ok": "listo",
+        "sin-entornos": "sin entornos",
+        "sin-configuracion": "sin configuración",
+    }
+
+    @property
+    def label(self) -> str:
+        """`awsm_cli 2.1.0 · listo`, corto para que entre en una línea."""
+        estado = self.STATE_LABELS.get(self.state, self.state)
+        return f"{self.name} {self.version} · {estado}"
+
+    @property
+    def tooltip(self) -> str:
+        """Lo largo: el nombre en clave y de dónde salió cada archivo."""
+        return f'{self.name} {self.version} "{self.codename}"\n{self.detail}'
+
+    @property
+    def healthy(self) -> bool:
+        return self.state == "ok"
+
+
+@dataclass(frozen=True, slots=True)
 class Snapshot:
     """Everything the window needs for one render."""
 
@@ -726,6 +764,31 @@ class Backend:
             session=self.session(),
             dump_directory=self.config.get_dump_directory(),
             loaded=True,
+        )
+
+    def core_status(self) -> CoreStatus:
+        """Qué `awsm_cli` se cargó y en qué estado está."""
+        if not self._loaded:
+            state = "sin-configuracion"
+        elif not self.config.get_all_environments():
+            state = "sin-entornos"
+        else:
+            state = "ok"
+
+        origins = [
+            f"{label}: {path}"
+            for label, path in (
+                ("config.json", self.config.loaded_config_path),
+                ("config-environment.json", self.config.loaded_environments_path),
+            )
+            if path is not None
+        ]
+        return CoreStatus(
+            name="awsm_cli",
+            version=VERSION,
+            codename=CODENAME,
+            state=state,
+            detail="\n".join(origins) or (self._load_error or "Sin configuración cargada."),
         )
 
     def fingerprint(self) -> tuple:
