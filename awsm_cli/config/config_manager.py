@@ -3,31 +3,108 @@ import json
 import os
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional
 
 
 class ConfigManager:
     """Singleton class to manage configuration"""
-    
+
     _instance = None
-    
-    def __new__(cls):
+
+    def __new__(cls, on_output: Optional[Callable[[str], None]] = None):
         if cls._instance is None:
             cls._instance = super(ConfigManager, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
-    
-    def __init__(self):
+
+    def __init__(self, on_output: Optional[Callable[[str], None]] = None):
         if self._initialized:
+            # El singleton ya existe: solo se actualiza a dónde va la salida, para
+            # que una GUI pueda adoptar la instancia que creó el CLI.
+            if on_output is not None:
+                self._out = on_output
             return
-        
+
         self._initialized = True
+        self._out: Callable[[str], None] = on_output or print
         self.config_data = {}
         self.environments_data = []
         self.loaded_config_path: Optional[Path] = None
         self.loaded_environments_path: Optional[Path] = None
         self._dump_directory: Optional[Path] = None
         # No usamos _base_path, buscaremos en múltiples ubicaciones
+
+    @classmethod
+    def reset(cls) -> None:
+        """Olvida el singleton, para que el próximo ConfigManager() relea todo.
+
+        La config se cachea entera (incluido _dump_directory), así que editarla en
+        disco no se nota hasta que la instancia se descarta.
+        """
+        cls._instance = None
+
+    def reload(self) -> bool:
+        """Vuelve a leer los dos archivos de configuración desde disco."""
+        self._dump_directory = None
+        self.config_data = {}
+        self.environments_data = []
+        return self.load_config() and self.load_environments()
+
+    # === Escritura ===
+
+    USER_CONFIG_DIR = Path.home() / ".config" / "aws-manager"
+
+    def config_write_path(self) -> Path:
+        """Dónde se guarda config.json: donde se cargó, o el directorio de usuario."""
+        return self.loaded_config_path or (self.USER_CONFIG_DIR / "config.json")
+
+    def environments_write_path(self) -> Path:
+        return self.loaded_environments_path or (
+            self.USER_CONFIG_DIR / "config-environment.json"
+        )
+
+    def save_config(self, data: Optional[Dict] = None) -> bool:
+        """Guarda config.json. Escribe sobre el archivo que se cargó."""
+        if data is not None:
+            self.config_data = data
+        path = self.config_write_path()
+        if not self._write_json(path, self.config_data):
+            return False
+        self.loaded_config_path = path
+        # El directorio de dumps se cachea al resolverlo: si cambió, hay que soltarlo.
+        self._dump_directory = None
+        self._out(f"✓ Configuración guardada en: {path}")
+        return True
+
+    def save_environments(self, environments: Optional[List[Dict]] = None) -> bool:
+        """Guarda config-environment.json."""
+        if environments is not None:
+            self.environments_data = environments
+        path = self.environments_write_path()
+        if not self._write_json(path, {"environments": self.environments_data}):
+            return False
+        self.loaded_environments_path = path
+        self._out(f"✓ Entornos guardados en: {path}")
+        return True
+
+    def _write_json(self, path: Path, payload) -> bool:
+        """Escritura atómica y con permisos privados.
+
+        La configuración puede tener claves de AWS, así que el archivo no debería
+        ser legible por el resto del sistema. Y un archivo a medias es peor que
+        uno viejo: se escribe a un temporal y se reemplaza de una.
+        """
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            temporary = path.with_suffix(path.suffix + '.tmp')
+            with open(temporary, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            os.chmod(temporary, 0o600)
+            temporary.replace(path)
+            return True
+        except OSError as e:
+            self._out(f"✗ No se pudo guardar {path}: {e}")
+            return False
 
     def _get_search_paths(self, filename: str) -> List[Path]:
         """Construye el orden de búsqueda para un archivo de configuración."""
@@ -63,30 +140,30 @@ class ConfigManager:
         if config_path is None:
             config_path = self._find_config_file("config.json")
             if config_path is None:
-                print("✗ Error: No se encontró config.json en:")
-                print("   - ~/.config/aws-manager/config.json")
-                print("   - Directorio del ejecutable")
-                print("   - Directorio actual")
+                self._out("✗ Error: No se encontró config.json en:")
+                self._out("   - ~/.config/aws-manager/config.json")
+                self._out("   - Directorio del ejecutable")
+                self._out("   - Directorio actual")
                 return False
         else:
             config_path = Path(config_path)
         
         try:
             if not config_path.exists():
-                print(f"✗ Error: No se encontró el archivo de configuración: {config_path}")
+                self._out(f"✗ Error: No se encontró el archivo de configuración: {config_path}")
                 return False
             
             with open(config_path, 'r', encoding='utf-8') as f:
                 self.config_data = json.load(f)
             self.loaded_config_path = Path(config_path)
             
-            print(f"✓ Configuración cargada desde: {config_path}")
+            self._out(f"✓ Configuración cargada desde: {config_path}")
             return True
         except json.JSONDecodeError as e:
-            print(f"✗ Error al parsear JSON: {e}")
+            self._out(f"✗ Error al parsear JSON: {e}")
             return False
         except Exception as e:
-            print(f"✗ Error al cargar configuración: {e}")
+            self._out(f"✗ Error al cargar configuración: {e}")
             return False
     
     def load_environments(self, env_path: Optional[str] = None) -> bool:
@@ -94,17 +171,17 @@ class ConfigManager:
         if env_path is None:
             env_path = self._find_config_file("config-environment.json")
             if env_path is None:
-                print("✗ Error: No se encontró config-environment.json en:")
-                print("   - ~/.config/aws-manager/config-environment.json")
-                print("   - Directorio del ejecutable")
-                print("   - Directorio actual")
+                self._out("✗ Error: No se encontró config-environment.json en:")
+                self._out("   - ~/.config/aws-manager/config-environment.json")
+                self._out("   - Directorio del ejecutable")
+                self._out("   - Directorio actual")
                 return False
         else:
             env_path = Path(env_path)
         
         try:
             if not env_path.exists():
-                print(f"✗ Error: No se encontró el archivo de entornos: {env_path}")
+                self._out(f"✗ Error: No se encontró el archivo de entornos: {env_path}")
                 return False
             
             with open(env_path, 'r', encoding='utf-8') as f:
@@ -112,13 +189,13 @@ class ConfigManager:
                 self.environments_data = data.get('environments', [])
             self.loaded_environments_path = Path(env_path)
             
-            print(f"✓ Configuración de entornos cargada: {len(self.environments_data)} entornos disponibles")
+            self._out(f"✓ Configuración de entornos cargada: {len(self.environments_data)} entornos disponibles")
             return True
         except json.JSONDecodeError as e:
-            print(f"✗ Error al parsear JSON de entornos: {e}")
+            self._out(f"✗ Error al parsear JSON de entornos: {e}")
             return False
         except Exception as e:
-            print(f"✗ Error al cargar entornos: {e}")
+            self._out(f"✗ Error al cargar entornos: {e}")
             return False
     
     # === Credentials ===
@@ -134,6 +211,18 @@ class ConfigManager:
     
     def get_key_path(self) -> str:
         return self.config_data.get('credentials', {}).get('key_path', '')
+
+    def get_key_path_for(self, environment: Optional[Dict]) -> str:
+        """La llave de un entorno: la propia si la tiene, si no la general.
+
+        Un `key_path` vacío o ausente en el entorno significa "usar la general",
+        que es lo que hacían todos los entornos antes de que esto existiera.
+        """
+        specific = str((environment or {}).get('key_path', '') or '').strip()
+        return specific or self.get_key_path()
+
+    def uses_own_key(self, environment: Optional[Dict]) -> bool:
+        return bool(str((environment or {}).get('key_path', '') or '').strip())
     
     def get_rule_description(self) -> str:
         return self.config_data.get('credentials', {}).get('rule_description', '')
